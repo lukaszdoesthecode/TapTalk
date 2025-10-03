@@ -1,5 +1,4 @@
 package com.example.taptalk
-
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -37,24 +36,20 @@ import okio.source
 import org.burnoutcrew.reorderable.*
 import java.util.Locale
 import android.speech.tts.TextToSpeech
+import com.google.mlkit.nl.smartreply.*
+import com.google.mlkit.nl.smartreply.SmartReplyGenerator
 
 
+// ---------------- ASSET FETCHER ----------------
 class AssetUriFetcher(
     private val context: Context,
     private val uri: Uri
 ) : Fetcher {
 
     override suspend fun fetch(): FetchResult {
-        Log.d("ACC_DEBUG", "FETCHER CALLED for: $uri")
-
         val assetPath = uri.toString().removePrefix("file:///android_asset/")
-        Log.d("ACC_DEBUG", "Asset path resolved to: $assetPath")
-
         val input = context.assets.open(assetPath)
-
-        val bmp = BitmapFactory.decodeStream(context.assets.open(assetPath))
-        Log.d("ACC_DEBUG", "Bitmap decoded successfully? ${bmp != null}")
-
+        BitmapFactory.decodeStream(context.assets.open(assetPath))
         return SourceResult(
             source = ImageSource(input.source().buffer(), context),
             mimeType = "image/png",
@@ -69,16 +64,13 @@ class AssetUriFetcher(
             imageLoader: ImageLoader
         ): Fetcher? {
             return if (data.toString().startsWith("file:///android_asset/")) {
-                Log.d("ACC_DEBUG", "Factory accepted URI: $data")
                 AssetUriFetcher(context, data)
-            } else {
-                Log.d("ACC_DEBUG", "Factory ignored URI: $data")
-                null
-            }
+            } else null
         }
     }
 }
 
+// ---------------- DATA ----------------
 data class AccCard(
     val fileName: String,
     val label: String,
@@ -88,7 +80,7 @@ data class AccCard(
 
 fun borderColorFor(folder: String): Color = when (folder.lowercase()) {
     "adjectives" -> Color.Blue
-    "conjuctions" -> Color.LightGray
+    "conjunctions" -> Color.LightGray
     "negation" -> Color.Red
     "nouns" -> Color(0xFFFFA500)
     "preposition" -> Color(0xFFFFC0CB)
@@ -96,34 +88,31 @@ fun borderColorFor(folder: String): Color = when (folder.lowercase()) {
     "questions" -> Color(0xFF800080)
     "social" -> Color(0xFFFFC0CB)
     "verbs" -> Color.Green
+    "determiner" -> Color.Black
     else -> Color.Black
 }
 
 val gridOrder: List<String?> = listOf(
-    "what_A1", "I_A1", "we_A1", "have_A1", "know_A1", "child_A1", "place_A1", "time_A1", "hand_A1", "good_A1", "bad_A1",
-    "how_A1", "you_A1", "they_A1", "come_A1", "make_A1", "man_A1", "world_A1", "year_A1", "thing_A1", "thirsty_A2", "hungry_A1",
-    "why_A1", "he_A1", "be_A1", "do_A1", "say_A1", "woman_A1", "house_A1", "month_A1", "bathroom_A1", "happy_A1", "sad_A1",
-    "where_A1", "she_A1", "yes_A1", "get_A1", "see_A1", "person_A1", "school_A1", "life_A1", "food_A1", "tired_A1", "calm_B1",
-    "who_A1", "it_A1.png", "no_A1", "go_B1", "create_A1", "friend_A1", "job_A1", "family_A1", "water_A1", "long_A1", "pretty_A1",
-    "when_A1.png", "a", "an", "the", "hello_A1", "good_morning_A1", "bye_A1", "thanks_A1", "please_A1", "to_A1", "of_A1",
-    "and_A1", "or_A1", null, null, null, null, null, null, null, null, null
+    "what_A1","I_A1","we_A1","have_A1","know_A1","child_A1","place_A1","time_A1","hand_A1","good_A1","bad_A1",
+    "how_A1","you_A1","they_A1","come_A1","make_A1","man_A1","world_A1","year_A1","thing_A1","thirsty_A2","hungry_A1",
+    "why_A1","he_A1","be_A1","do_A1","say_A1","woman_A1","house_A1","week_A1","bathroom_A1","happy_A1","sad_A1",
+    "where_A1","she_A1","yes_A1","get_A1","see_A1","person_A1","school_A1","life_A1","food_A1","tired_A1","calm_B1",
+    "who_A1","it_A1","no_A1","go_B1","create_A1","friend_A1","job_A1","family_A1","water_A1","and_A1","or_A1",
+    "when_A1","a_A1","an_A1","the_A1","hello_A1","good_morning_A1","bye_A1","thanks_A1","please_A1","to_A1","of_A1",
+    null,null,null,null,null,null,null,null,null,null,null
 )
 
+// --------- ACC cards from ACC_board ----------
 fun loadAccCards(context: Context): List<AccCard> {
     val assetManager = context.assets
-
     fun walk(path: String): List<AccCard> {
         val files = assetManager.list(path) ?: return emptyList()
-        Log.d("ACC_DEBUG", "Listing in: $path -> ${files.joinToString()}")
-
         return files.flatMap { name ->
             val fullPath = if (path.isEmpty()) name else "$path/$name"
             val children = assetManager.list(fullPath) ?: emptyArray()
-
             if (children.isNotEmpty()) {
                 walk(fullPath)
             } else if (name.endsWith(".png") || name.endsWith(".jpg")) {
-                Log.d("ACC_DEBUG", "Found image: $fullPath")
                 val folderName = path.substringAfterLast("/")
                 listOf(
                     AccCard(
@@ -136,8 +125,29 @@ fun loadAccCards(context: Context): List<AccCard> {
             } else emptyList()
         }
     }
-
     return walk("ACC_board")
+}
+
+// ---------- Category buttons ---------------
+fun trimCategoryName(fileName: String): String {
+    var name = fileName.substringBeforeLast('.')
+    name = name.replace("_cathegory","",true)
+        .replace("_category","",true)
+        .replace("_"," ")
+        .trim()
+    return name.replaceFirstChar { it.uppercase() }
+}
+
+fun loadCategories(context: Context): List<AccCard> {
+    val files = context.assets.list("ACC_board/categories") ?: return emptyList()
+    return files.filter { it.endsWith(".png") }.map { file ->
+        AccCard(
+            fileName = file,
+            label = trimCategoryName(file),
+            path = "file:///android_asset/ACC_board/categories/$file",
+            folder = "categories"
+        )
+    }
 }
 
 fun normalizeFileName(file: String): String {
@@ -153,21 +163,17 @@ fun normalizeFileName(file: String): String {
     }.replaceFirstChar { it.titlecase(Locale.getDefault()) }
 }
 
+// ---------------- ACTIVITY ----------------
 class AccActivity : ComponentActivity() {
     private var tts: TextToSpeech? = null
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // TTS
+        val smartReply = SmartReply.getClient()
+
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                val result = tts?.setLanguage(Locale.US)
-                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    Log.e("ACC_DEBUG", "TTS: Language not supported")
-                }
-            } else {
-                Log.e("ACC_DEBUG", "TTS: Initialization failed")
+                tts?.setLanguage(Locale.US)
             }
         }
 
@@ -177,7 +183,7 @@ class AccActivity : ComponentActivity() {
 
         setContent {
             MaterialTheme {
-                AccScreen(imageLoader, speak = { text -> speakOut(text) })
+                AccScreen(imageLoader, smartReply) { speakOut(it) }
             }
         }
     }
@@ -193,14 +199,43 @@ class AccActivity : ComponentActivity() {
     }
 }
 
-// ------------------ UI ------------------
+// ---------------- UI ----------------
 @Composable
 fun AccScreen(
     imageLoader: ImageLoader,
+    smartReply: SmartReplyGenerator,
     spacing: Dp = 6.dp,
     speak: (String) -> Unit
 ) {
-    var chosen = remember { mutableStateListOf<AccCard>() }
+    val chosen = remember { mutableStateListOf<AccCard>() }
+    var suggestions by remember { mutableStateOf<List<AccCard>>(emptyList()) }
+
+    val context = LocalContext.current
+    val accCards = remember { loadAccCards(context) }
+    val accDict = remember { accCards.associateBy { it.label.lowercase() } }
+
+    LaunchedEffect(chosen.toList()) {
+        val sentence = chosen.joinToString(" ") { it.label }
+        if (sentence.isNotBlank()) {
+            val conversation = ArrayList<TextMessage>()
+            conversation.add(
+                TextMessage.createForLocalUser(sentence, System.currentTimeMillis())
+            )
+
+            smartReply.suggestReplies(conversation)
+                .addOnSuccessListener { result ->
+                    if (result.status == SmartReplySuggestionResult.STATUS_SUCCESS) {
+                        suggestions = result.suggestions
+                            .mapNotNull { accDict[it.text.lowercase()] }
+                    }
+                }
+                .addOnFailureListener { e ->
+                    Log.e("ACC_DEBUG", "SmartReply failed", e)
+                }
+        } else {
+            suggestions = emptyList()
+        }
+    }
 
     Scaffold(bottomBar = { BottomNavBar() }) { innerPadding ->
         Column(
@@ -226,32 +261,51 @@ fun AccScreen(
             )
 
             GreenBar(
-                labels = listOf("Q0", "Q1", "Q2", "Q3", "Q4", "Q5"),
+                cards = suggestions,
                 spacing = spacing,
+                imageLoader = imageLoader,
+                onSuggestionClick = { card ->
+                    if (chosen.size < 14) chosen.add(card)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(70.dp)
+                    .height(90.dp)
             )
 
-            AACBoardGrid(imageLoader) { card ->
-                chosen.add(card)
-            }
+            AACBoardGrid(
+                imageLoader,
+                onCardClick = { card ->
+                    if (chosen.size < 14) chosen.add(card)
+                },
+                modifier = Modifier.weight(1f)
+            )
+
+            CategoryBar(
+                imageLoader = imageLoader,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(90.dp)
+            )
         }
     }
 }
 
+// ---------------- AAC GRID ----------------
 @Composable
-fun AACBoardGrid(imageLoader: ImageLoader, onCardClick: (AccCard) -> Unit) {
+fun AACBoardGrid(
+    imageLoader: ImageLoader,
+    onCardClick: (AccCard) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val cards = remember { loadAccCards(context) }
         .associateBy { it.fileName.substringBeforeLast('.').lowercase() }
 
-    val rows = 7
+    val rows = 6
     val cols = 11
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = modifier
             .padding(4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -296,9 +350,99 @@ fun AACBoardGrid(imageLoader: ImageLoader, onCardClick: (AccCard) -> Unit) {
                                         .weight(1f)
                                         .fillMaxWidth()
                                 )
+                                Text(card.label, fontSize = 12.sp, textAlign = TextAlign.Center)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --------------- CATEGORY BAR ---------------
+@Composable
+fun CategoryBar(imageLoader: ImageLoader, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val categories = remember { loadCategories(context) }
+
+    val visibleCount = 9
+    val maxStart = (categories.size - visibleCount).coerceAtLeast(0)
+    var startIndex by remember { mutableStateOf(0) }
+
+    val endIndex = (startIndex + visibleCount).coerceAtMost(categories.size)
+    val visibleCats = categories.subList(startIndex, endIndex)
+
+    Row(
+        modifier = modifier
+            .background(Color(0xFFEFEFEF))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        for (i in 0 until 11) {
+            when (i) {
+                0 -> {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .border(2.dp, Color.Black, RoundedCornerShape(4.dp))
+                            .background(Color.LightGray, RoundedCornerShape(4.dp))
+                            .clickable {
+                                startIndex = (startIndex - visibleCount).coerceAtLeast(0)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Prev", tint = Color.Black)
+                    }
+                }
+                10 -> {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .border(2.dp, Color.Black, RoundedCornerShape(4.dp))
+                            .background(Color.LightGray, RoundedCornerShape(4.dp))
+                            .clickable {
+                                startIndex = (startIndex + visibleCount).coerceAtMost(maxStart)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.ArrowForward, contentDescription = "Next", tint = Color.Black)
+                    }
+                }
+                else -> {
+                    val catIndex = i - 1
+                    if (catIndex < visibleCats.size) {
+                        val cat = visibleCats[catIndex]
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .border(2.dp, Color.Black, RoundedCornerShape(4.dp))
+                                .background(Color(0xFFD9D9D9), RoundedCornerShape(4.dp))
+                                .clickable { Log.d("ACC_DEBUG", "Clicked category: ${cat.label}") },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(2.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Image(
+                                    painter = rememberAsyncImagePainter(
+                                        model = Uri.parse(cat.path),
+                                        imageLoader = imageLoader
+                                    ),
+                                    contentDescription = cat.label,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxWidth()
+                                )
                                 Text(
-                                    card.label,
+                                    text = cat.label,
                                     fontSize = 12.sp,
+                                    maxLines = 1,
                                     textAlign = TextAlign.Center
                                 )
                             }
@@ -310,7 +454,7 @@ fun AACBoardGrid(imageLoader: ImageLoader, onCardClick: (AccCard) -> Unit) {
     }
 }
 
-// ------------------ TOP BAR ------------------
+// ---------------- TOP WHITE BAR ----------------
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TopWhiteBar(
@@ -327,7 +471,6 @@ fun TopWhiteBar(
     val state = rememberReorderableLazyListState(
         onMove = { from, to -> onReorder(from.index, to.index) }
     )
-
     Row(
         modifier = modifier
             .background(Color.White)
@@ -355,11 +498,7 @@ fun TopWhiteBar(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .border(
-                                2.dp,
-                                borderColorFor(card.folder),
-                                RoundedCornerShape(4.dp)
-                            )
+                            .border(2.dp, borderColorFor(card.folder), RoundedCornerShape(4.dp))
                             .clip(RoundedCornerShape(4.dp))
                             .background(Color(0xFFD9D9D9))
                             .combinedClickable(
@@ -383,47 +522,83 @@ fun TopWhiteBar(
                 }
             }
         }
-
         IconButton(onClick = onClearAll) {
             Icon(Icons.Default.Delete, contentDescription = "Clear all")
         }
-
         IconButton(onClick = onPlayStop) {
             Icon(Icons.Default.PlayArrow, contentDescription = "Play/Stop")
         }
     }
 }
 
-
-
-// ------------------ GREEN BAR ------------------
+// ---------------- GREEN BAR ----------------
 @Composable
-fun GreenBar(labels: List<String>, spacing: Dp, modifier: Modifier = Modifier) {
+fun GreenBar(
+    cards: List<AccCard>,
+    spacing: Dp,
+    modifier: Modifier = Modifier,
+    imageLoader: ImageLoader,
+    onSuggestionClick: (AccCard) -> Unit
+) {
     Row(
-        modifier = modifier.background(Color(0xFFDFF0D8)).fillMaxWidth().padding(vertical = spacing),
+        modifier = modifier
+            .background(Color(0xFFDFF0D8))
+            .fillMaxWidth()
+            .padding(vertical = spacing),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(spacing), verticalAlignment = Alignment.CenterVertically) {
-            labels.forEach { label ->
-                Box(modifier = Modifier.size(50.dp)) {
-                    AccTile(text = label, borderColor = Color.Black, modifier = Modifier.fillMaxSize(), onClick = {}, onLongClick = {})
+        Row(horizontalArrangement = Arrangement.spacedBy(spacing)) {
+            cards.forEach { card ->
+                Box(
+                    modifier = Modifier
+                        .height(70.dp)
+                        .width(80.dp)
+                        .border(2.dp, borderColorFor(card.folder), RoundedCornerShape(4.dp))
+                        .background(Color(0xFFD9D9D9), RoundedCornerShape(4.dp))
+                        .clickable { onSuggestionClick(card) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(2.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Image(
+                            painter = rememberAsyncImagePainter(
+                                model = Uri.parse(card.path),
+                                imageLoader = imageLoader
+                            ),
+                            contentDescription = card.label,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                        )
+                        Text(
+                            text = card.label,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-// ------------------ TILE + NAV ------------------
+// ---------------- TILE ----------------
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AccTile(text: String, borderColor: Color, modifier: Modifier = Modifier, onClick: () -> Unit, onLongClick: () -> Unit) {
     Box(
-        modifier = modifier.border(2.dp, borderColor, RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp))
-            .background(Color.LightGray).combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        modifier = modifier
+            .border(2.dp, borderColor, RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color.LightGray)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         contentAlignment = Alignment.Center
     ) { Text(text, fontSize = 12.sp) }
 }
+
 
 @Composable
 fun BottomNavBar() {
