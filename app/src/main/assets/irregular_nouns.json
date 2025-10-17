@@ -1,0 +1,10 @@
+{
+  "child": "children",
+  "man": "men",
+  "woman": "women",
+  "person": "people",
+  "tooth": "teeth",
+  "foot": "feet",
+  "mouse": "mice",
+  "goose": "geese"
+}

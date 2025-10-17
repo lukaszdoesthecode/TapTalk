@@ -32,5 +32,11 @@
         <!-- ACC board -->
         <activity android:name=".AccActivity" />
 
+        <!-- Keyboard -->
+        <activity android:name=".KeyboardActivity" />
+
+        <!-- Fast settings -->
+        <activity android:name=".FastSettingsActivity" />
+
     </application>
 </manifest>
