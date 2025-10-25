@@ -1,9 +1,11 @@
 plugins {
+    id("kotlin-kapt")
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     id("org.jetbrains.kotlin.plugin.compose") version "2.0.0"
     alias(libs.plugins.google.gms.google.services)
 }
+
 
 android {
     namespace = "com.example.taptalk"
@@ -89,5 +91,20 @@ dependencies {
 
     // Language model
     implementation("com.google.mlkit:smart-reply:17.0.2")
+
+    // Firebase
+    implementation(platform("com.google.firebase:firebase-bom:33.2.0"))
+    implementation("com.google.firebase:firebase-firestore-ktx")
+
+    // Room (local DB)
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
+
+    // Lifecycle for ViewModel
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6")
+
+    // Coroutine helpers (for ViewModel + Room)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 }
 

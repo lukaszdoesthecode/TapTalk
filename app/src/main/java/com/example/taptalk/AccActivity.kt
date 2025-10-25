@@ -1,4 +1,5 @@
 package com.example.taptalk
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -41,7 +42,8 @@ import com.google.mlkit.nl.smartreply.SmartReplyGenerator
 import androidx.compose.ui.window.Dialog
 import org.json.JSONObject
 import java.nio.charset.Charset
-
+import coil.request.ImageRequest
+import androidx.compose.ui.graphics.painter.Painter
 
 class AssetUriFetcher(
     private val context: Context,
@@ -133,19 +135,23 @@ fun getVerbForms(verb: String, json: JSONObject): VerbForms {
     }
 }
 
-fun borderColorFor(folder: String): Color = when (folder.lowercase()) {
-    "adjectives"   -> Color.Blue
-    "conjunctions" -> Color.LightGray
-    "negation"     -> Color.Red
-    "nouns"        -> Color(0xFFFFA500)
-    "preposition"  -> Color(0xFFFFC0CB)
-    "pronouns"     -> Color.Yellow
-    "questions"    -> Color(0xFF800080)
-    "social"       -> Color(0xFFFFC0CB)
-    "verbs"        -> Color.Green
-    "determiner"   -> Color.Black
-    else           -> Color.Black
+fun borderColorFor(folder: String): Color {
+    val f = folder.lowercase()
+    return when {
+        "adjective" in f   -> Color(0xFFADD8E6)
+        "conjunction" in f -> Color(0xFFD3D3D3)
+        "negation" in f    -> Color(0xFFFF6B6B)
+        "noun" in f        -> Color(0xFFFFB347)
+        "preposition" in f -> Color(0xFFFFC0CB)
+        "pronoun" in f     -> Color(0xFFFFF176)
+        "question" in f    -> Color(0xFFB39DDB)
+        "social" in f      -> Color(0xFFFFC0CB)
+        "verb" in f        -> Color(0xFF81C784)
+        "determiner" in f  -> Color(0xFF90A4AE)
+        else               -> Color.Black
+    }
 }
+
 
 val gridOrder: List<String?> = listOf(
     "what_A1","I_A1","we_A1","have_A1","know_A1","child_A1","place_A1","time_A1","hand_A1","good_A1","bad_A1",
@@ -259,6 +265,9 @@ class AccActivity : ComponentActivity() {
 
         val imageLoader = ImageLoader.Builder(this)
             .components { add(AssetUriFetcher.Factory(this@AccActivity)) }
+            .crossfade(true)
+            .respectCacheHeaders(false)
+            .allowHardware(true)
             .build()
 
         setContent {
@@ -310,6 +319,7 @@ fun AccScreen(
     val accCards = remember { loadAccCards(context) }
     val accDict = remember { accCards.associateBy { it.label.lowercase() } }
 
+    val painterCache = remember { mutableStateMapOf<String, Painter>() }
 
     LaunchedEffect(chosen.toList()) {
         val sentence = chosen.joinToString(" ") { it.label }
@@ -349,6 +359,7 @@ fun AccScreen(
                     .fillMaxWidth()
                     .height(80.dp),
                 imageLoader = imageLoader,
+                painterCache = painterCache,
                 onReorder = { from, to -> chosen.add(to, chosen.removeAt(from)) },
                 onRemove = { idx -> chosen.removeAt(idx) },
                 onClearAll = { chosen.clear() },
@@ -372,30 +383,40 @@ fun AccScreen(
                     .height(90.dp)
             )
 
-            // --- AAC Board grid ---
-
+            // --- Grid of cards ---
             AACBoardGrid(
                 imageLoader = imageLoader,
+                painterCache = painterCache,
                 selectedCategory = selectedCategory,
                 onCardClick = { card ->
-                    if (chosen.size < 14) chosen.add(card)
+                    if (chosen.size < 14) {
+                        chosen.add(card)
+                    }
                 },
                 onCardLongPress = { card ->
-                    if (chosen.size < 14) {
-                        when (card.folder) {
-                            "nouns" -> {
-                                val plural = suggestPlural(card.label, irregularPluralJson)
-                                chosen.add(card.copy(label = plural))
+                    when {
+                        card.folder.contains("noun", ignoreCase = true) -> {
+                            val pluralLabel = suggestPlural(card.label, irregularPluralJson)
+                            if (chosen.size < 14) {
+                                chosen.add(card.copy(label = pluralLabel))
                             }
-                            "verbs" -> {
-                                selectedCard = card
-                                showPopup = true
-                            }
+                        }
+
+                        card.folder == "verbs" -> {
+                            selectedCard = card
+                            showPopup = true
+                        }
+
+                        else -> {
+                            if (chosen.size < 14) chosen.add(card)
                         }
                     }
                 },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
             )
+
 
             // --- Categories ---
             CategoryBar(
@@ -405,6 +426,7 @@ fun AccScreen(
                     .fillMaxWidth()
                     .height(90.dp)
             )
+
         }
     }
 
@@ -544,41 +566,48 @@ fun AccScreen(
     }
 }
 
-// ---------------- AAC GRID ----------------
+@SuppressLint("RememberReturnType")
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AACBoardGrid(
     imageLoader: ImageLoader,
+    painterCache: Map<String, Painter>,
     selectedCategory: String?,
     onCardClick: (AccCard) -> Unit,
     onCardLongPress: (AccCard) -> Unit,
     modifier: Modifier = Modifier
-) {
+)
+{
     val context = LocalContext.current
     val allCards = remember { loadAccCards(context) }
 
-    LaunchedEffect(selectedCategory) {
-        Log.d("ACC_DEBUG", "Selected category: $selectedCategory")
-        Log.d("ACC_DEBUG", "Loaded folders: ${allCards.map { it.folder }.distinct()}")
-    }
-
     val rows = 6
     val cols = 11
+    val perPage = rows * cols
 
-    val visibleCards: List<AccCard> = if (!selectedCategory.isNullOrBlank()) {
-        allCards.filter {
-            it.folder.equals(selectedCategory, ignoreCase = true) ||
-                    it.folder.equals(selectedCategory + "s", ignoreCase = true)
-        }
-    } else {
-        val cardsMap = allCards.associateBy { it.fileName.substringBeforeLast('.').lowercase() }
-        gridOrder.map { key -> key?.let { name -> cardsMap[name.lowercase()] } }.filterNotNull()
+    val visibleCardsAll by remember(selectedCategory) {
+        mutableStateOf(
+            if (!selectedCategory.isNullOrBlank()) {
+                allCards.filter {
+                    it.folder.equals(selectedCategory, ignoreCase = true) ||
+                            it.folder.equals(selectedCategory + "s", ignoreCase = true)
+                }
+            } else {
+                val cardsMap = allCards.associateBy { it.fileName.substringBeforeLast('.').lowercase() }
+                gridOrder.mapNotNull { key -> key?.let { cardsMap[it.lowercase()] } }
+            }
+        )
     }
+
+    var page by remember { mutableStateOf(0) }
+    val pageCount = (visibleCardsAll.size + perPage - 1) / perPage
+    val visibleCards = visibleCardsAll.drop(page * perPage).take(perPage)
 
     Column(
         modifier = modifier.padding(4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
+        // ---- GRID ----
         for (row in 0 until rows) {
             Row(
                 modifier = Modifier.weight(1f),
@@ -586,7 +615,7 @@ fun AACBoardGrid(
             ) {
                 for (col in 0 until cols) {
                     val idx = row * cols + col
-                    val card = if (idx < visibleCards.size) visibleCards[idx] else null
+                    val card = visibleCards.getOrNull(idx)
 
                     Box(
                         modifier = Modifier
@@ -600,8 +629,8 @@ fun AACBoardGrid(
                             .background(Color(0xFFD9D9D9), RoundedCornerShape(4.dp))
                             .combinedClickable(
                                 enabled = card != null,
-                                onClick = { if (card != null) onCardClick(card) },
-                                onLongClick = { if (card != null) onCardLongPress(card) }
+                                onClick = { card?.let(onCardClick) },
+                                onLongClick = { card?.let(onCardLongPress) }
                             )
                             .padding(2.dp),
                         contentAlignment = Alignment.Center
@@ -611,18 +640,31 @@ fun AACBoardGrid(
                                 modifier = Modifier.fillMaxSize(),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
+
+                                val context = LocalContext.current
+
+                                val painter = rememberAsyncImagePainter(
+                                    model = ImageRequest.Builder(context)
+                                        .data(Uri.parse(card.path))
+                                        .crossfade(true)
+                                        .build(),
+                                    imageLoader = imageLoader
+                                )
+
+
+
+
                                 Image(
-                                    painter = rememberAsyncImagePainter(
-                                        model = Uri.parse(card.path),
-                                        imageLoader = imageLoader
-                                    ),
+                                    painter = painter,
                                     contentDescription = card.label,
                                     modifier = Modifier
                                         .weight(1f)
                                         .fillMaxWidth()
                                 )
+
+
                                 Text(
-                                    card.label,
+                                    text = card.label,
                                     fontSize = 12.sp,
                                     textAlign = TextAlign.Center
                                 )
@@ -632,8 +674,48 @@ fun AACBoardGrid(
                 }
             }
         }
+
+        // ---- PAGE NAVIGATION ----
+        if (pageCount > 1) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = { if (page > 0) page-- },
+                    enabled = page > 0
+                ) {
+                    Icon(
+                        Icons.Default.ArrowBack,
+                        contentDescription = "Prev page",
+                        tint = if (page > 0) Color.Black else Color.Gray
+                    )
+                }
+
+                Text(
+                    text = "Page ${page + 1} / $pageCount",
+                    color = Color.Black,
+                    fontSize = 16.sp
+                )
+
+                IconButton(
+                    onClick = { if (page < pageCount - 1) page++ },
+                    enabled = page < pageCount - 1
+                ) {
+                    Icon(
+                        Icons.Default.ArrowForward,
+                        contentDescription = "Next page",
+                        tint = if (page < pageCount - 1) Color.Black else Color.Gray
+                    )
+                }
+            }
+        }
     }
 }
+
 
 // --------------- CATEGORY BAR ---------------
 @Composable
@@ -740,6 +822,7 @@ fun TopWhiteBar(
     modifier: Modifier = Modifier,
     spacing: Dp = 6.dp,
     imageLoader: ImageLoader,
+    painterCache: MutableMap<String, Painter>,
     onReorder: (Int, Int) -> Unit = { _, _ -> },
     onRemove: (Int) -> Unit = {},
     onClearAll: () -> Unit = {},
@@ -785,17 +868,23 @@ fun TopWhiteBar(
                             ),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        val painter = rememberAsyncImagePainter(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(Uri.parse(card.path))
+                                .crossfade(true)
+                                .build(),
+                            imageLoader = imageLoader
+                        )
+
                         Image(
-                            painter = rememberAsyncImagePainter(
-                                model = Uri.parse(card.path),
-                                imageLoader = imageLoader
-                            ),
+                            painter = painter,
                             contentDescription = card.label,
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
                         )
                         Text(card.label, fontSize = 12.sp, textAlign = TextAlign.Center)
+
                     }
                 }
             }
@@ -912,10 +1001,17 @@ fun BottomNavBar() {
         }) {
             Icon(Icons.Default.Home, contentDescription = "Home")
         }
-        IconButton(onClick = { /* Create logic */ }) {
+        IconButton(onClick = {
+            context.startActivity(
+                android.content.Intent(context, CreateCardActivity::class.java)
+            )
+        }) {
             Icon(Icons.Default.Add, contentDescription = "Create")
         }
-        IconButton(onClick = { /* Settings */ }) {
+        IconButton(onClick = {
+            context.startActivity(
+                android.content.Intent(context, SettingsActivity::class.java)
+            ) }) {
             Icon(Icons.Default.Settings, contentDescription = "Settings")
         }
     }

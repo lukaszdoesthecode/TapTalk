@@ -1,5 +1,6 @@
 package com.example.taptalk
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -18,6 +19,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -27,7 +29,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.taptalk.ui.LoginViewModel
 import com.example.taptalk.ui.theme.TapTalkTheme
+import com.google.firebase.auth.FirebaseAuth
 
+// 💚 Your theme colors
 private val GreenBg = Color(0xFFE6F2E6)
 private val BrandGreen = Color(0xFF1A3B1A)
 private val BrandPurple = Color(0xFF7B4B9A)
@@ -53,6 +57,17 @@ private fun BottomGradient(modifier: Modifier = Modifier) {
 class LoginActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 🧠 Step 1: Skip login if already authenticated
+        val auth = FirebaseAuth.getInstance()
+        val currentUser = auth.currentUser
+        if (currentUser != null) {
+            startActivity(Intent(this, AccActivity::class.java))
+            finish()
+            return
+        }
+
+        // 🖤 Step 2: Otherwise show login screen
         setContent {
             TapTalkTheme {
                 Surface(
@@ -78,7 +93,19 @@ private fun LoginScreen(
     var showPassword by remember { mutableStateOf(false) }
 
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
 
+    // 💫 Step 3: Navigate to ACCActivity after login success
+    LaunchedEffect(state.success) {
+        if (state.success) {
+            context.startActivity(Intent(context, AccActivity::class.java))
+            if (context is android.app.Activity) {
+                context.finish()
+            }
+        }
+    }
+
+    // 🧁 Step 4: UI
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -111,20 +138,28 @@ private fun LoginScreen(
                 .padding(horizontal = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // ✉️ Email
             TextField(
                 value = email,
                 onValueChange = { email = it },
                 singleLine = true,
-                placeholder = { Text("E-mail", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) },
-                textStyle = TextStyle(color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium),
+                placeholder = {
+                    Text(
+                        "E-mail",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                },
+                textStyle = TextStyle(
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                ),
                 shape = RoundedCornerShape(100),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = BrandPurple,
                     unfocusedContainerColor = BrandPurple,
-                    disabledContainerColor = BrandPurple,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
                     cursorColor = Color.White
                 ),
                 modifier = Modifier.fillMaxWidth().height(64.dp)
@@ -132,13 +167,27 @@ private fun LoginScreen(
 
             Spacer(Modifier.height(14.dp))
 
+            // 🔒 Password
             TextField(
                 value = password,
                 onValueChange = { password = it },
                 singleLine = true,
-                placeholder = { Text("Password", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold) },
-                textStyle = TextStyle(color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium),
-                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                placeholder = {
+                    Text(
+                        "Password",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                },
+                textStyle = TextStyle(
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium
+                ),
+                visualTransformation = if (showPassword)
+                    VisualTransformation.None
+                else PasswordVisualTransformation(),
                 trailingIcon = {
                     val icon = if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility
                     IconButton(onClick = { showPassword = !showPassword }) {
@@ -149,10 +198,6 @@ private fun LoginScreen(
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = BrandPurple,
                     unfocusedContainerColor = BrandPurple,
-                    disabledContainerColor = BrandPurple,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
                     cursorColor = Color.White
                 ),
                 modifier = Modifier.fillMaxWidth().height(64.dp)
@@ -160,11 +205,15 @@ private fun LoginScreen(
 
             Spacer(Modifier.height(22.dp))
 
+            // 🔘 Login button
             Button(
                 onClick = { viewModel.login(email.trim(), password) },
                 colors = ButtonDefaults.buttonColors(containerColor = BrandPurple),
                 shape = RoundedCornerShape(100),
-                modifier = Modifier.fillMaxWidth(0.6f).height(64.dp).shadow(6.dp, RoundedCornerShape(100), clip = false)
+                modifier = Modifier
+                    .fillMaxWidth(0.6f)
+                    .height(64.dp)
+                    .shadow(6.dp, RoundedCornerShape(100), clip = false)
             ) {
                 if (state.isLoading) {
                     CircularProgressIndicator(
@@ -179,15 +228,25 @@ private fun LoginScreen(
                         tint = Color.White
                     )
                     Spacer(Modifier.width(10.dp))
-                    Text("Log in", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Log in",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
 
             Spacer(Modifier.height(12.dp))
 
+            // 💬 Status
             when {
                 state.error != null -> Text(state.error ?: "", color = Color(0xFFB00020))
-                state.success -> Text("Login successful!", color = BrandGreen, fontWeight = FontWeight.Bold)
+                state.success -> Text(
+                    "Login successful!",
+                    color = BrandGreen,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }

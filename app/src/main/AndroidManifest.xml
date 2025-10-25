@@ -38,5 +38,11 @@
         <!-- Fast settings -->
         <activity android:name=".FastSettingsActivity" />
 
+        <!-- Settings -->
+        <activity android:name=".SettingsActivity" />
+
+        <!-- Create card -->
+        <activity android:name=".CreateCardActivity" />
+
     </application>
 </manifest>
