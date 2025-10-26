@@ -44,6 +44,7 @@ import org.json.JSONObject
 import java.nio.charset.Charset
 import coil.request.ImageRequest
 import androidx.compose.ui.graphics.painter.Painter
+import java.io.File
 
 class AssetUriFetcher(
     private val context: Context,
@@ -193,6 +194,30 @@ fun loadAccCards(context: Context): List<AccCard> {
     }
 
     return walk("ACC_board") + walk("categories")
+}
+
+fun loadCustomCards(context: Context): List<AccCard> {
+    val rootDir = File(context.filesDir, "Custom_Words")
+    if (!rootDir.exists()) return emptyList()
+
+    val customCards = mutableListOf<AccCard>()
+
+    rootDir.walkTopDown().forEach { file ->
+        if (file.isFile && (file.extension == "jpg" || file.extension == "png")) {
+            val folderName = file.parentFile?.name ?: "custom"
+            val label = file.nameWithoutExtension
+            customCards.add(
+                AccCard(
+                    fileName = file.name,
+                    label = label.replaceFirstChar { it.uppercase() },
+                    path = file.absolutePath,
+                    folder = folderName
+                )
+            )
+        }
+    }
+
+    return customCards
 }
 
 // ---------- Category buttons ---------------
@@ -576,10 +601,12 @@ fun AACBoardGrid(
     onCardClick: (AccCard) -> Unit,
     onCardLongPress: (AccCard) -> Unit,
     modifier: Modifier = Modifier
-)
-{
+) {
     val context = LocalContext.current
-    val allCards = remember { loadAccCards(context) }
+    val builtInCards = remember { loadAccCards(context) }
+    val customCards = remember { loadCustomCards(context) }
+
+    val allCards = remember { builtInCards + customCards }
 
     val rows = 6
     val cols = 11
@@ -587,17 +614,25 @@ fun AACBoardGrid(
 
     val visibleCardsAll by remember(selectedCategory) {
         mutableStateOf(
-            if (!selectedCategory.isNullOrBlank()) {
-                allCards.filter {
-                    it.folder.equals(selectedCategory, ignoreCase = true) ||
-                            it.folder.equals(selectedCategory + "s", ignoreCase = true)
+            when {
+                selectedCategory.equals("custom", ignoreCase = true) -> {
+                    customCards
                 }
-            } else {
-                val cardsMap = allCards.associateBy { it.fileName.substringBeforeLast('.').lowercase() }
-                gridOrder.mapNotNull { key -> key?.let { cardsMap[it.lowercase()] } }
+
+                !selectedCategory.isNullOrBlank() -> {
+                    allCards.filter {
+                        it.folder.startsWith(selectedCategory, ignoreCase = true)
+                    }
+                }
+
+                else -> {
+                    val cardsMap = allCards.associateBy { it.fileName.substringBeforeLast('.').lowercase() }
+                    gridOrder.mapNotNull { key -> key?.let { cardsMap[it.lowercase()] } }
+                }
             }
         )
     }
+
 
     var page by remember { mutableStateOf(0) }
     val pageCount = (visibleCardsAll.size + perPage - 1) / perPage

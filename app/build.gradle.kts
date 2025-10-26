@@ -106,5 +106,11 @@ dependencies {
 
     // Coroutine helpers (for ViewModel + Room)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    implementation(platform("com.google.firebase:firebase-bom:33.3.0"))
+    implementation("com.google.firebase:firebase-storage-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-auth-ktx")
+
 }
 
