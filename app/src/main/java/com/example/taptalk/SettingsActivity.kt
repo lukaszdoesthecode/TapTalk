@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.room.Room
 import com.example.taptalk.data.AppDatabase
 import com.example.taptalk.data.FastSettingsRepository
 import com.google.firebase.auth.FirebaseAuth
@@ -283,9 +282,7 @@ fun SettingsDropdown(title: String, options: List<String>, selected: String, onS
 fun SettingsScreen() {
     val context = LocalContext.current
 
-    val db = remember {
-        Room.databaseBuilder(context, AppDatabase::class.java, "tap_talk_db").build()
-    }
+    val db = remember { AppDatabase.getInstance(context) }
     val fastRepo = remember { FastSettingsRepository(db.fastSettingsDao(), db.historyDao()) }
     val coroutineScope = rememberCoroutineScope()
 

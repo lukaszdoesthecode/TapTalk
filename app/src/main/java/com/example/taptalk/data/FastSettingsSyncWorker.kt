@@ -1,7 +1,6 @@
 package com.example.taptalk.data
 
 import android.content.Context
-import androidx.room.Room
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.google.firebase.auth.FirebaseAuth
@@ -43,7 +42,7 @@ class FastSettingsSyncWorker(
      * Firestore operation, indicating that the work should be attempted again later.
      */
     override suspend fun doWork(): Result {
-        val db = Room.databaseBuilder(applicationContext, AppDatabase::class.java, "tap_talk_db").build()
+        val db = AppDatabase.getInstance(applicationContext)
         val fastDao = db.fastSettingsDao()
         val settings = fastDao.getSettings()
         val userId = FirebaseAuth.getInstance().currentUser?.uid
