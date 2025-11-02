@@ -28,7 +28,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.taptalk.ui.RegisterViewModel
+import com.example.taptalk.viewmodel.RegisterViewModel
 import com.example.taptalk.ui.theme.TapTalkTheme
 import java.util.Calendar
 
@@ -36,6 +36,14 @@ private val GreenBg = Color(0xFFE6F2E6)
 private val BrandGreen = Color(0xFF1A3B1A)
 private val BrandPurple = Color(0xFF7B4B9A)
 
+/**
+ * Activity for user registration.
+ *
+ * This activity provides a user interface for new users to register for the TapTalk application.
+ * It hosts the [RegisterScreen] Composable, which contains the registration form fields
+ * and logic for handling user input and submission.
+ * Upon successful registration, it navigates the user to the [AccActivity].
+ */
 class RegisterActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,7 +57,7 @@ class RegisterActivity : ComponentActivity() {
                         BottomGradient(Modifier.align(Alignment.BottomCenter))
                         RegisterScreen(
                             onSuccess = {
-                                //TODO replace HomeActivity with acc
+                                startActivity(Intent(this@RegisterActivity, AccActivity::class.java))
                             }
                         )
                     }
@@ -59,6 +67,15 @@ class RegisterActivity : ComponentActivity() {
     }
 }
 
+/**
+ * A composable that displays a decorative vertical gradient at the bottom of the screen.
+ *
+ * This component is used to add a subtle visual effect to the background, transitioning
+ * from transparent to light purple shades. It fills the width of its parent and has a fixed height.
+ *
+ * @param modifier The modifier to be applied to the gradient container. It is aligned to the bottom center
+ * in the parent `Box`.
+ */
 @Composable
 private fun BottomGradient(modifier: Modifier = Modifier) {
     Box(
@@ -77,6 +94,159 @@ private fun BottomGradient(modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * A styled [TextField] composable with a distinct purple background, rounded corners,
+ * and white text, used for input fields in the registration form.
+ *
+ * @param value The current text value of the field.
+ * @param onValueChange The callback that is triggered when the input service updates the text.
+ * @param placeholder The text to be displayed when the input field is empty.
+ * @param isPassword If true, the text will be visually transformed to obscure it,
+ * suitable for password entry. Defaults to false.
+ */
+@Composable
+private fun PurpleField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    isPassword: Boolean = false
+) {
+    TextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        placeholder = {
+            Text(
+                placeholder,
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp
+            )
+        },
+        textStyle = TextStyle(
+            color = Color.White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Medium
+        ),
+        visualTransformation = if (isPassword)
+            PasswordVisualTransformation() else VisualTransformation.None,
+        shape = RoundedCornerShape(100),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = BrandPurple,
+            unfocusedContainerColor = BrandPurple,
+            disabledContainerColor = BrandPurple,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent,
+            cursorColor = Color.White
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+    )
+}
+
+/**
+ * A Composable that displays a checkbox followed by a text label.
+ *
+ * This is a small helper component that arranges a [Checkbox] and a [Text]
+ * horizontally in a [Row]. It's used for creating labeled checkbox options
+ * in the registration form.
+ *
+ * @param checked The current checked state of the checkbox.
+ * @param onCheckedChange A callback that is invoked when the user clicks the checkbox,
+ *                        providing the new checked state.
+ * @param label The text to display next to the checkbox.
+ */
+@Composable
+private fun CheckboxWithLabel(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    label: String
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = CheckboxDefaults.colors(checkedColor = BrandGreen)
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(text = label, fontSize = 12.sp, color = Color(0xFF1F1F1F), lineHeight = 16.sp)
+    }
+}
+
+/**
+ * A Composable that displays a field for date selection.
+ *
+ * This component looks like a text field but, when clicked, opens a native Android
+ * [android.app.DatePickerDialog] to allow the user to pick a date. The selected date
+ * is then displayed within the field. If no date is selected, it shows a placeholder label.
+ *
+ * @param label The placeholder text to display when no date has been selected. Defaults to "Date of Birth".
+ * @param selectedDate The currently selected date string in "YYYY-MM-DD" format. An empty string signifies no selection.
+ * @param onDateSelected A callback function that is invoked when the user selects a date from the dialog.
+ *                       The selected date is passed as a string in "YYYY-MM-DD" format.
+ */
+@Composable
+fun DatePickerField(
+    label: String = "Date of Birth",
+    selectedDate: String,
+    onDateSelected: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val calendar = Calendar.getInstance()
+
+    val parts = selectedDate.split("-")
+    if (parts.size == 3) {
+        calendar.set(parts[0].toInt(), parts[1].toInt() - 1, parts[2].toInt())
+    }
+
+    val datePickerDialog = android.app.DatePickerDialog(
+        context,
+        { _, year, month, dayOfMonth ->
+            val formatted = "%04d-%02d-%02d".format(year, month + 1, dayOfMonth)
+            onDateSelected(formatted)
+        },
+        calendar.get(Calendar.YEAR),
+        calendar.get(Calendar.MONTH),
+        calendar.get(Calendar.DAY_OF_MONTH)
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .background(BrandPurple, RoundedCornerShape(100))
+            .clickable { datePickerDialog.show() }
+            .padding(horizontal = 20.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Text(
+            text = if (selectedDate.isEmpty()) label else selectedDate,
+            color = Color.White,
+            fontSize = if (selectedDate.isEmpty()) 20.sp else 18.sp,
+            fontWeight = if (selectedDate.isEmpty()) FontWeight.ExtraBold else FontWeight.Medium,
+            letterSpacing = if (selectedDate.isEmpty()) 1.sp else 0.sp
+        )
+    }
+}
+
+/**
+ * A composable that displays the user registration form.
+ *
+ * This screen provides input fields for the user's name, email, password, date of birth,
+ * and an optional PIN. It also includes checkboxes for login preferences and accepting
+ * the terms of service. The form's state is managed by a [RegisterViewModel].
+ * User interactions, such as button clicks, trigger validation and registration logic
+ * within the ViewModel. The UI updates to show loading indicators, error messages,
+ * or a success state based on the data flowing from the ViewModel.
+ *
+ * @param viewModel The [RegisterViewModel] instance used to manage the state and logic of the registration process.
+ *                  It defaults to a ViewModel provided by `viewModel()`.
+ * @param onSuccess A lambda function to be invoked when the registration is successful.
+ *                  This is used for navigation or other side effects upon completion.
+ */
 @Composable
 private fun RegisterScreen(
     viewModel: RegisterViewModel = viewModel(),
@@ -257,110 +427,3 @@ private fun RegisterScreen(
         Spacer(Modifier.height(28.dp))
     }
 }
-
-@Composable
-private fun PurpleField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    isPassword: Boolean = false
-) {
-    TextField(
-        value = value,
-        onValueChange = onValueChange,
-        singleLine = true,
-        placeholder = {
-            Text(
-                placeholder,
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 1.sp
-            )
-        },
-        textStyle = TextStyle(
-            color = Color.White,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Medium
-        ),
-        visualTransformation = if (isPassword)
-            PasswordVisualTransformation() else VisualTransformation.None,
-        shape = RoundedCornerShape(100),
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = BrandPurple,
-            unfocusedContainerColor = BrandPurple,
-            disabledContainerColor = BrandPurple,
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent,
-            cursorColor = Color.White
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(64.dp)
-    )
-}
-
-@Composable
-private fun CheckboxWithLabel(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    label: String
-) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = CheckboxDefaults.colors(checkedColor = BrandGreen)
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(text = label, fontSize = 12.sp, color = Color(0xFF1F1F1F), lineHeight = 16.sp)
-    }
-}
-
-@Composable
-fun DatePickerField(
-    label: String = "Date of Birth",
-    selectedDate: String,
-    onDateSelected: (String) -> Unit
-) {
-    val context = LocalContext.current
-    val calendar = Calendar.getInstance()
-
-    val parts = selectedDate.split("-")
-    if (parts.size == 3) {
-        calendar.set(parts[0].toInt(), parts[1].toInt() - 1, parts[2].toInt())
-    }
-
-    val datePickerDialog = android.app.DatePickerDialog(
-        context,
-        { _, year, month, dayOfMonth ->
-            val formatted = "%04d-%02d-%02d".format(year, month + 1, dayOfMonth)
-            onDateSelected(formatted)
-        },
-        calendar.get(Calendar.YEAR),
-        calendar.get(Calendar.MONTH),
-        calendar.get(Calendar.DAY_OF_MONTH)
-    )
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .background(BrandPurple, RoundedCornerShape(100))
-            .clickable { datePickerDialog.show() }
-            .padding(horizontal = 20.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Text(
-            text = if (selectedDate.isEmpty()) label else selectedDate,
-            color = Color.White,
-            fontSize = if (selectedDate.isEmpty()) 20.sp else 18.sp,
-            fontWeight = if (selectedDate.isEmpty()) FontWeight.ExtraBold else FontWeight.Medium,
-            letterSpacing = if (selectedDate.isEmpty()) 1.sp else 0.sp
-        )
-    }
-}
-
-
-

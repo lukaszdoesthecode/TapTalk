@@ -1,11 +1,10 @@
 plugins {
-    id("kotlin-kapt")
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    id("kotlin-kapt")
     id("org.jetbrains.kotlin.plugin.compose") version "2.0.0"
     alias(libs.plugins.google.gms.google.services)
 }
-
 
 android {
     namespace = "com.example.taptalk"
@@ -39,78 +38,62 @@ android {
     buildFeatures { compose = true }
 
     composeOptions { kotlinCompilerExtensionVersion = "1.5.10" }
-    sourceSets {
-        getByName("main") {
-            assets {
-                srcDirs("src/main/assets")
-            }
-        }
-    }
+
+    sourceSets["main"].assets.srcDirs("src/main/assets")
 }
 
 dependencies {
-    // Core Android
+    // ------------------ Android Core ------------------
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
 
-    // Jetpack Compose BOM + libs
+    // ------------------ Jetpack Compose ------------------
     implementation(platform("androidx.compose:compose-bom:2024.08.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
-    implementation("io.coil-kt:coil-compose:2.7.0")
-    implementation("io.coil-kt:coil:2.7.0")
 
-    //  Firebase (Auth + Firestore)
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.auth)
-    implementation(libs.firebase.firestore)
-
-    // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
-
-    // Debug tools
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
-    // Testing
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-
-    //ACC board
-    implementation("org.burnoutcrew.composereorderable:reorderable:0.9.6")
-
-    // Language model
-    implementation("com.google.mlkit:smart-reply:17.0.2")
-
-    // Firebase
-    implementation(platform("com.google.firebase:firebase-bom:33.2.0"))
+    // ------------------ Firebase ------------------
+    implementation(platform("com.google.firebase:firebase-bom:33.3.0"))
+    implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-storage-ktx")
 
-    // Room (local DB)
+    // ------------------ Coroutines ------------------
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+
+    // ------------------ Room (Local DB) ------------------
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     kapt("androidx.room:room-compiler:2.6.1")
 
-    // Lifecycle for ViewModel
+    // ------------------ Lifecycle / Work ------------------
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6")
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 
-    // Coroutine helpers (for ViewModel + Room)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    // ------------------ Image Loading ------------------
+    implementation("io.coil-kt:coil:2.7.0")
+    implementation("io.coil-kt:coil-compose:2.7.0")
 
-    implementation(platform("com.google.firebase:firebase-bom:33.3.0"))
-    implementation("com.google.firebase:firebase-storage-ktx")
-    implementation("com.google.firebase:firebase-firestore-ktx")
-    implementation("com.google.firebase:firebase-auth-ktx")
+    // ------------------ ML Kit ------------------
+    implementation("com.google.mlkit:smart-reply:17.0.2")
 
+    // ------------------ Reorderable AAC Grid ------------------
+    implementation("org.burnoutcrew.composereorderable:reorderable:0.9.6")
+
+    // ------------------ Testing ------------------
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
 }
-

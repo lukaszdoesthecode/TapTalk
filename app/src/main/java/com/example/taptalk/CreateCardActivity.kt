@@ -1,6 +1,5 @@
 package com.example.taptalk
 
-import android.app.Activity
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
@@ -30,13 +29,16 @@ import coil.compose.rememberAsyncImagePainter
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 
+/**
+ * An activity for creating new communication cards.
+ * This activity hosts the [CreateCardScreen] Composable, which provides the UI
+ * for users to select an image, enter a label, choose a category, and save
+ * the new card. The card data is then saved both locally on the device and
+ * to Firebase for synchronization.
+ */
 class CreateCardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,7 +50,20 @@ class CreateCardActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+/**
+ * A Composable function that provides the user interface for creating a new communication card.
+ *
+ * This screen allows users to:
+ * 1.  Pick an image from their device's gallery.
+ * 2.  Enter a text label for the card.
+ * 3.  Select a grammatical category for the card (e.g., noun, verb).
+ * 4.  Save the card, which triggers a process to save the card's data locally and to Firebase.
+ *
+ * The UI consists of an image picker area, a text field for the label, a flow layout of
+ * category selection chips, and a save button. It also displays status messages (success or failure)
+ * after the save operation.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CreateCardScreen() {
     val context = LocalContext.current
@@ -192,6 +207,32 @@ fun CreateCardScreen() {
     }
 }
 
+/**
+ * Saves a custom communication card's image to local storage and uploads the image
+ * and its metadata to Firebase.
+ *
+ * This function performs a multi-step process:
+ * 1.  It first checks if a user is logged in. If not, it returns an error.
+ * 2.  It saves the provided image (`imageUri`) to the application's internal files directory
+ *     under a structured path: `Custom_Words/{category}_A1/{label}.jpg`. This allows for
+ *     offline access to the created card.
+ * 3.  If local save is successful, it uploads the same image to Firebase Storage under a
+ *     user-specific path: `users/{userId}/Custom_Words/{category}_A1/{label}.jpg`.
+ * 4.  Upon successful upload, it retrieves the public download URL for the image.
+ * 5.  Finally, it saves the card's metadata (label, category, level, image URL, and timestamp)
+ *     to a Firestore document, creating a record of the custom card for the user.
+ *
+ * The result of the entire operation (success or failure with a message) is communicated
+ * back through the `onResult` callback.
+ *
+ * @param context The application context, used for accessing the file system.
+ * @param imageUri The URI of the image to be saved and uploaded.
+ * @param label The text label for the card (e.g., "Hello", "Water"). This is also used as the filename.
+ * @param selectedCategory The category the card belongs to (e.g., "nouns", "verbs").
+ * @param userId The unique ID of the current Firebase user. If null, the operation fails.
+ * @param onResult A lambda function that receives a String message indicating the outcome
+ *                 (e.g., "Saved successfully!", "Upload failed: ...").
+ */
 fun saveCardLocallyAndToFirebase(
     context: Context,
     imageUri: Uri,
@@ -264,18 +305,17 @@ fun saveCardLocallyAndToFirebase(
         }
 }
 
-
 fun borderColorForCategory(f: String): Color {
     return when {
         "adjective" in f -> Color(0xFFADD8E6)
         "conjunction" in f -> Color(0xFFD3D3D3)
-        "negation" in f -> Color(0xFFFF6B6B)
+        "emergency" in f -> Color(0xFFFF6B6B)
         "noun" in f -> Color(0xFFFFB347)
         "preposition" in f -> Color(0xFFFFC0CB)
         "pronoun" in f -> Color(0xFFFFF176)
         "question" in f -> Color(0xFFB39DDB)
         "social" in f -> Color(0xFFFFC0CB)
-        "verb" in f -> Color(0xFF81C784)
+        "verbs" in f -> Color(0xFF81C784)
         "determiner" in f -> Color(0xFF90A4AE)
         else -> Color.Black
     }

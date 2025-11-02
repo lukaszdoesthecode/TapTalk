@@ -10,15 +10,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Material3.DayNight.NoActionBar">
 
-        <!-- PIN screen -->
-        <activity android:name="com.example.taptalk.PinActivity" />
-
-        <!-- Register screen -->
-        <activity android:name="com.example.taptalk.RegisterActivity" />
-
-        <!-- Login screen -->
-        <activity android:name="com.example.taptalk.LoginActivity" />
-
         <!-- Launcher -->
         <activity
             android:name="com.example.taptalk.MainActivity"
@@ -28,6 +19,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Register screen -->
+        <activity android:name="com.example.taptalk.RegisterActivity" />
+
+        <!-- Login screen -->
+        <activity android:name="com.example.taptalk.LoginActivity" />
 
         <!-- ACC board -->
         <activity android:name=".AccActivity" />
@@ -43,6 +40,10 @@
 
         <!-- Create card -->
         <activity android:name=".CreateCardActivity" />
+
+        <!-- Custom words manager -->
+        <activity android:name=".CustomWordsManagerActivity" />
+
 
     </application>
 </manifest>

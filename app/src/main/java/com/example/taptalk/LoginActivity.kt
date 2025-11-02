@@ -27,15 +27,62 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.taptalk.ui.LoginViewModel
+import com.example.taptalk.viewmodel.LoginViewModel
+import com.example.taptalk.ui.theme.BackgroundLight
+import com.example.taptalk.ui.theme.ErrorRed
+import com.example.taptalk.ui.theme.GreenPrimary
+import com.example.taptalk.ui.theme.PurplePrimary
 import com.example.taptalk.ui.theme.TapTalkTheme
 import com.google.firebase.auth.FirebaseAuth
 
-// 💚 Your theme colors
-private val GreenBg = Color(0xFFE6F2E6)
-private val BrandGreen = Color(0xFF1A3B1A)
-private val BrandPurple = Color(0xFF7B4B9A)
 
+/**
+ * The entry point activity for the application, handling user login.
+ *
+ * This activity serves two main purposes:
+ * 1. If a user is already authenticated with Firebase, it immediately navigates
+ *    them to the main part of the app ([AccActivity]) and finishes itself.
+ * 2. If no user is logged in, it displays the [LoginScreen] Composable,
+ *    allowing the user to enter their credentials and attempt to sign in.
+ *
+ * The UI is built using Jetpack Compose and features a background gradient
+ * and the main login form.
+ */
+class LoginActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val auth = FirebaseAuth.getInstance()
+        val currentUser = auth.currentUser
+        if (currentUser != null) {
+            startActivity(Intent(this, AccActivity::class.java))
+            finish()
+            return
+        }
+
+        setContent {
+            TapTalkTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = BackgroundLight
+                ) {
+                    Box(Modifier.fillMaxSize()) {
+                        BottomGradient(Modifier.align(Alignment.BottomCenter))
+                        LoginScreen()
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A composable that renders a decorative vertical gradient at the bottom of the screen.
+ * This gradient transitions from transparent to light purple shades, providing a subtle
+ * visual effect for the background of the login screen.
+ *
+ * @param modifier The modifier to be applied to the gradient container. Defaults to [Modifier].
+ */
 @Composable
 private fun BottomGradient(modifier: Modifier = Modifier) {
     Box(
@@ -54,36 +101,17 @@ private fun BottomGradient(modifier: Modifier = Modifier) {
     )
 }
 
-class LoginActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        // 🧠 Step 1: Skip login if already authenticated
-        val auth = FirebaseAuth.getInstance()
-        val currentUser = auth.currentUser
-        if (currentUser != null) {
-            startActivity(Intent(this, AccActivity::class.java))
-            finish()
-            return
-        }
-
-        // 🖤 Step 2: Otherwise show login screen
-        setContent {
-            TapTalkTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = GreenBg
-                ) {
-                    Box(Modifier.fillMaxSize()) {
-                        BottomGradient(Modifier.align(Alignment.BottomCenter))
-                        LoginScreen()
-                    }
-                }
-            }
-        }
-    }
-}
-
+/**
+ * A Composable function that displays the login UI.
+ *
+ * This screen includes fields for email and password, a login button, and displays
+ * the app logo. It observes the state from the [LoginViewModel] to handle UI updates
+ * for loading, success, and error states. On successful login, it navigates to
+ * the `AccActivity`.
+ *
+ * @param viewModel An instance of [LoginViewModel] used to manage the login logic
+ *                  and state. Defaults to a ViewModel provided by `androidx.lifecycle.viewmodel.compose.viewModel()`.
+ */
 @Composable
 private fun LoginScreen(
     viewModel: LoginViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
@@ -95,7 +123,6 @@ private fun LoginScreen(
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
 
-    // 💫 Step 3: Navigate to ACCActivity after login success
     LaunchedEffect(state.success) {
         if (state.success) {
             context.startActivity(Intent(context, AccActivity::class.java))
@@ -105,7 +132,6 @@ private fun LoginScreen(
         }
     }
 
-    // 🧁 Step 4: UI
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -126,7 +152,7 @@ private fun LoginScreen(
             text = "TapTalk",
             fontSize = 28.sp,
             fontWeight = FontWeight.ExtraBold,
-            color = BrandGreen
+            color = GreenPrimary
         )
 
         Spacer(Modifier.height(28.dp))
@@ -138,7 +164,6 @@ private fun LoginScreen(
                 .padding(horizontal = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // ✉️ Email
             TextField(
                 value = email,
                 onValueChange = { email = it },
@@ -158,8 +183,8 @@ private fun LoginScreen(
                 ),
                 shape = RoundedCornerShape(100),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = BrandPurple,
-                    unfocusedContainerColor = BrandPurple,
+                    focusedContainerColor = PurplePrimary,
+                    unfocusedContainerColor = PurplePrimary,
                     cursorColor = Color.White
                 ),
                 modifier = Modifier.fillMaxWidth().height(64.dp)
@@ -167,7 +192,6 @@ private fun LoginScreen(
 
             Spacer(Modifier.height(14.dp))
 
-            // 🔒 Password
             TextField(
                 value = password,
                 onValueChange = { password = it },
@@ -196,8 +220,8 @@ private fun LoginScreen(
                 },
                 shape = RoundedCornerShape(100),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = BrandPurple,
-                    unfocusedContainerColor = BrandPurple,
+                    focusedContainerColor = PurplePrimary,
+                    unfocusedContainerColor = PurplePrimary,
                     cursorColor = Color.White
                 ),
                 modifier = Modifier.fillMaxWidth().height(64.dp)
@@ -205,10 +229,10 @@ private fun LoginScreen(
 
             Spacer(Modifier.height(22.dp))
 
-            // 🔘 Login button
+            // Login button
             Button(
                 onClick = { viewModel.login(email.trim(), password) },
-                colors = ButtonDefaults.buttonColors(containerColor = BrandPurple),
+                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
                 shape = RoundedCornerShape(100),
                 modifier = Modifier
                     .fillMaxWidth(0.6f)
@@ -239,12 +263,11 @@ private fun LoginScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            // 💬 Status
             when {
-                state.error != null -> Text(state.error ?: "", color = Color(0xFFB00020))
+                state.error != null -> Text(state.error ?: "", color = ErrorRed)
                 state.success -> Text(
                     "Login successful!",
-                    color = BrandGreen,
+                    color = GreenPrimary,
                     fontWeight = FontWeight.Bold
                 )
             }

@@ -27,9 +27,38 @@ import com.google.mlkit.nl.smartreply.*
 import kotlinx.coroutines.tasks.await
 import java.util.*
 
+/**
+ * The main activity for the keyboard screen of the TapTalk application.
+ *
+ * This activity sets up the user interface for a custom keyboard designed for
+ * accessibility. It initializes the Android Text-to-Speech (TTS) engine
+ * to provide auditory feedback for the typed text. The UI is built using
+ * Jetpack Compose and features a `KeyboardScreen` composable.
+ *
+ * The activity manages the lifecycle of the TTS engine, initializing it in `onCreate`
+ * and shutting it down in `onDestroy` to prevent memory leaks and ensure proper
+ * resource management.
+ *
+ * @see ComponentActivity
+ * @see TextToSpeech
+ * @see KeyboardScreen
+ */
 class KeyboardActivity : ComponentActivity() {
     private var tts: TextToSpeech? = null
 
+    /**
+     * Called when the activity is first created.
+     *
+     * This method initializes the activity, including:
+     * - Setting up the Text-To-Speech (TTS) engine and setting its language to US English upon successful initialization.
+     * - Setting the content view of the activity using Jetpack Compose.
+     * - Building the UI with a `Scaffold` that includes a bottom navigation bar (`BottomNavBar`) and the main `KeyboardScreen`.
+     * - Passing a lambda function to `KeyboardScreen` to handle the speech synthesis of typed text.
+     *
+     * @param savedInstanceState If the activity is being re-initialized after
+     *     previously being shut down then this Bundle contains the data it most
+     *     recently supplied in [onSaveInstanceState].  <b><i>Note: Otherwise it is null.</i></b>
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -57,6 +86,12 @@ class KeyboardActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Called when the activity is being destroyed.
+     * This is the final call that the activity will receive.
+     * It is used here to release resources, specifically to stop and shut down the
+     * Text-to-Speech (TTS) engine to prevent memory leaks.
+     */
     override fun onDestroy() {
         tts?.stop()
         tts?.shutdown()
@@ -64,6 +99,113 @@ class KeyboardActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Processes a key press and updates the current text accordingly.
+ *
+ * This function handles standard character appends, as well as special keys like
+ * "SPACE" for adding a space and "⌫" for backspace/deleting the last character.
+ *
+ * @param currentText The current string of text before the key press.
+ * @param key The string representing the key that was pressed. This can be a character,
+ *            "SPACE", or "⌫".
+ * @return The updated string after processing the key press.
+ */
+fun handleKeyPress(currentText: String, key: String): String {
+    return when (key) {
+        "SPACE" -> "$currentText "
+        "⌫" -> if (currentText.isNotEmpty()) currentText.dropLast(1) else currentText
+        else -> currentText + key
+    }
+}
+
+/**
+ * A composable function that renders a single row of a keyboard with exact spacing and sizing.
+ *
+ * This function arranges a list of keys in a `Row`, calculating their widths dynamically
+ * based on the available screen width. Special keys like "SPACE", "COPY", and "PASTE"
+ * are given larger relative widths. The keys are color-coded based on their type
+ * (e.g., numbers, vowels, consonants, punctuation, special actions) to improve usability.
+ *
+ * @param keys A list of strings, where each string represents a key to be displayed in the row.
+ * @param keyHeight The base height for each key. The actual height is slightly larger to accommodate padding and borders.
+ * @param onKeyClick A lambda function that is invoked when a key is clicked, passing the string representation of the key.
+ */
+@Composable
+fun KeyboardRowExact(keys: List<String>, keyHeight: Dp, onKeyClick: (String) -> Unit) {
+    val spacing = 6.dp
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    val horizontalPadding = 16.dp
+    val totalSpacing = spacing * (keys.size - 1)
+    val usableWidth = screenWidth - horizontalPadding * 2 - totalSpacing
+
+    val unitWidths = keys.map {
+        when (it) {
+            "SPACE" -> 3f
+            "COPY", "PASTE" -> 1.6f
+            else -> 1f
+        }
+    }
+    val totalUnits = unitWidths.sum()
+    val unitWidth = usableWidth / totalUnits
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = horizontalPadding),
+        horizontalArrangement = Arrangement.spacedBy(spacing),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        keys.forEachIndexed { index, key ->
+            val width = unitWidth * unitWidths[index]
+            val borderColor = when {
+                key in "1234567890" -> Color(0xFF3B82F6)
+                key.uppercase() in setOf("A", "E", "I", "O", "U") -> Color(0xFFFFA500)
+                key in listOf("↑", "⌫", "SPACE", "COPY", "PASTE") -> Color(0xFF9F58E3)
+                key in listOf(".", ",", "!", "?") -> Color.Black
+                else -> Color(0xFF0B8B3A)
+            }
+
+            Box(
+                modifier = Modifier
+                    .width(width)
+                    .height(keyHeight + 35.dp)
+                    .background(Color(0xFFD9D9D9), RoundedCornerShape(6.dp))
+                    .border(3.dp, borderColor, RoundedCornerShape(6.dp))
+                    .clickable { onKeyClick(key) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    key,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A Composable function that displays a full-screen custom keyboard interface.
+ *
+ * This screen provides a complete Augmentative and Alternative Communication (AAC) keyboard,
+ * allowing users to construct sentences by tapping keys. It includes a text display area,
+ * smart reply suggestions, and a QWERTY-style keyboard with additional function keys
+ * like space, backspace, copy, and paste. The composed text can be spoken aloud
+ * using the provided text-to-speech (TTS) function.
+ *
+ * Features:
+ * - **Text Display**: Shows the currently typed text or a placeholder prompt.
+ * - **Action Bar**: Contains buttons to clear the text and to trigger text-to-speech.
+ * - **Smart Replies**: Utilizes ML Kit's Smart Reply to suggest context-aware responses
+ *   based on a predefined conversation history. Falls back to default suggestions if ML Kit fails.
+ * - **Custom Keyboard**: A five-row keyboard with numbers, letters, and special function keys.
+ *
+ * @param speak A lambda function `(String) -> Unit` that is invoked to speak the given text aloud.
+ *              This is typically connected to a TextToSpeech engine.
+ * @param modifier The modifier to be applied to the root Column of the screen.
+ */
 @Composable
 fun KeyboardScreen(speak: (String) -> Unit, modifier: Modifier = Modifier) {
     var text by remember { mutableStateOf("") }
@@ -172,69 +314,5 @@ fun KeyboardScreen(speak: (String) -> Unit, modifier: Modifier = Modifier) {
             KeyboardRowExact(listOf("↑") + "ZXCVBNM".map { it.toString() } + listOf(".", "⌫"), keyHeight, ::handleKeyClick)
             KeyboardRowExact(listOf("COPY", "PASTE", "SPACE", ",", "!", "?"), keyHeight, ::handleKeyClick)
         }
-    }
-}
-
-@Composable
-fun KeyboardRowExact(keys: List<String>, keyHeight: Dp, onKeyClick: (String) -> Unit) {
-    val spacing = 6.dp
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
-    val horizontalPadding = 16.dp
-    val totalSpacing = spacing * (keys.size - 1)
-    val usableWidth = screenWidth - horizontalPadding * 2 - totalSpacing
-
-    val unitWidths = keys.map {
-        when (it) {
-            "SPACE" -> 3f
-            "COPY", "PASTE" -> 1.6f
-            else -> 1f
-        }
-    }
-    val totalUnits = unitWidths.sum()
-    val unitWidth = usableWidth / totalUnits
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = horizontalPadding),
-        horizontalArrangement = Arrangement.spacedBy(spacing),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        keys.forEachIndexed { index, key ->
-            val width = unitWidth * unitWidths[index]
-            val borderColor = when {
-                key in "1234567890" -> Color(0xFF3B82F6)
-                key.uppercase() in setOf("A", "E", "I", "O", "U") -> Color(0xFFFFA500)
-                key in listOf("↑", "⌫", "SPACE", "COPY", "PASTE") -> Color(0xFF9F58E3)
-                key in listOf(".", ",", "!", "?") -> Color.Black
-                else -> Color(0xFF0B8B3A)
-            }
-
-            Box(
-                modifier = Modifier
-                    .width(width)
-                    .height(keyHeight + 35.dp)
-                    .background(Color(0xFFD9D9D9), RoundedCornerShape(6.dp))
-                    .border(3.dp, borderColor, RoundedCornerShape(6.dp))
-                    .clickable { onKeyClick(key) },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    key,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-            }
-        }
-    }
-}
-
-fun handleKeyPress(currentText: String, key: String): String {
-    return when (key) {
-        "SPACE" -> "$currentText "
-        "⌫" -> if (currentText.isNotEmpty()) currentText.dropLast(1) else currentText
-        else -> currentText + key
     }
 }

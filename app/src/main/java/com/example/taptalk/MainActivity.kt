@@ -16,47 +16,41 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.taptalk.ui.theme.BackgroundLight
+import com.example.taptalk.ui.theme.GreenPrimary
+import com.example.taptalk.ui.theme.PurplePrimary
 import com.example.taptalk.ui.theme.TapTalkTheme
-
-private val GreenBg = Color(0xFFE6F2E6)
-private val BrandGreen = Color(0xFF1A3B1A)
-private val BrandPurple = Color(0xFF7B4B9A)
+import com.google.firebase.auth.FirebaseAuth
 
 /**
- * Bottom gradient like in your mock:
- * transparent -> light lavender -> deeper lavender
+ * The main entry point of the application.
+ *
+ * This activity serves as the initial screen for users. It checks if a user is already
+ * signed in with Firebase Authentication.
+ * - If a user is logged in, it immediately redirects them to the [AccActivity].
+ * - If no user is logged in, it displays the [TapTalkScreen], which provides options
+ *   to either log in or register.
  */
-@Composable
-private fun BottomGradient(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(220.dp)
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color.Transparent,
-                        Color(0xFFE5E0EF),
-                        Color(0xFFD1C2E3)
-                    )
-                )
-            )
-    )
-}
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user != null) {
+            startActivity(Intent(this, AccActivity::class.java))
+            finish()
+            return
+        }
+
         setContent {
             TapTalkTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = GreenBg
+                    color = BackgroundLight
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         BottomGradient(
@@ -78,13 +72,48 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * A composable that displays a decorative vertical gradient at the bottom of the screen.
+ * This gradient transitions from transparent to a light purple, providing a subtle visual
+ * flourish to the background.
+ *
+ * @param modifier The modifier to be applied to this composable. Defaults to [Modifier].
+ */
+@Composable
+private fun BottomGradient(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(220.dp)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        Color(0xFFE5E0EF),
+                        Color(0xFFD1C2E3)
+                    )
+                )
+            )
+    )
+}
+
+/**
+ * The main welcome screen for the TapTalk application.
+ *
+ * This composable function displays the application's logo and name, along with
+ * prominent buttons for logging in and registering. It serves as the initial
+ * landing page for users who are not yet authenticated.
+ *
+ * @param onLoginClick A lambda function to be executed when the "Log in" button is clicked.
+ *                     This should typically navigate the user to the login screen.
+ * @param onRegisterClick A lambda function to be executed when the "Register" button is clicked.
+ *                        This should typically navigate the user to the registration screen.
+ */
 @Composable
 fun TapTalkScreen(
     onLoginClick: () -> Unit,
     onRegisterClick: () -> Unit
 ) {
-    val context = LocalContext.current
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -105,7 +134,7 @@ fun TapTalkScreen(
             text = "TapTalk",
             fontSize = 44.sp,
             fontWeight = FontWeight.ExtraBold,
-            color = BrandGreen,
+            color = GreenPrimary,
             letterSpacing = 0.5.sp
         )
 
@@ -127,7 +156,7 @@ fun TapTalkScreen(
         ) {
             Button(
                 onClick = onLoginClick,
-                colors = ButtonDefaults.buttonColors(containerColor = BrandPurple),
+                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
                 shape = RoundedCornerShape(100),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -152,7 +181,7 @@ fun TapTalkScreen(
 
             Button(
                 onClick = onRegisterClick,
-                colors = ButtonDefaults.buttonColors(containerColor = BrandGreen),
+                colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
                 shape = RoundedCornerShape(100),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -175,24 +204,6 @@ fun TapTalkScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
-                onClick = {
-                    context.startActivity(Intent(context, AccActivity::class.java))
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B5998)),
-                shape = RoundedCornerShape(100),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp)
-                    .shadow(6.dp, RoundedCornerShape(100), clip = false)
-            ) {
-                Text(
-                    text = "Open AAC Board",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
         }
     }
 }
