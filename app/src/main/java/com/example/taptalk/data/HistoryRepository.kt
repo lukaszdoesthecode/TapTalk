@@ -23,10 +23,9 @@ import kotlinx.coroutines.withContext
  *
  * @param context The application context, used to initialize the Room database.
  */
-class HistoryRepository(private var context: Context) {
+class HistoryRepository(context: Context) {
 
-    private val db = HistoryDatabase.getDatabase(context)
-    private val dao = db.historyDao()
+    private val historyDao = AppDatabase.getInstance(context).historyDao()
 
     /**
      * Saves a generated sentence to the local Room database for offline access.
@@ -39,7 +38,7 @@ class HistoryRepository(private var context: Context) {
     suspend fun saveSentenceOffline(sentence: String) {
         withContext(Dispatchers.IO) {
             val entity = HistoryEntity(sentence = sentence, timestamp = System.currentTimeMillis())
-            dao.insert(entity)
+            historyDao.insert(entity)
             Log.d("HISTORY_DEBUG", "Saved offline: $sentence")
         }
     }
@@ -51,7 +50,7 @@ class HistoryRepository(private var context: Context) {
      * @return A list of [HistoryEntity] objects, ordered by timestamp in descending order.
      */
     suspend fun getRecentSentences() = withContext(Dispatchers.IO) {
-        dao.getRecent()
+        historyDao.getRecent()
     }
 
     /**
@@ -79,7 +78,7 @@ class HistoryRepository(private var context: Context) {
             }
 
             val firestore = FirebaseFirestore.getInstance()
-            val allHistory = dao.getAll()
+            val allHistory = historyDao.getAll()
 
             if (allHistory.isEmpty()) {
                 Log.d("HISTORY_DEBUG", "No local history to sync")

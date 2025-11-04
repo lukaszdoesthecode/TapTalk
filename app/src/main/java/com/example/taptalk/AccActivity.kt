@@ -49,7 +49,6 @@ import androidx.lifecycle.lifecycleScope
 import com.example.taptalk.data.HistoryRepository
 import kotlinx.coroutines.launch
 import java.io.File
-import androidx.room.Room
 import coil.imageLoader
 import com.example.taptalk.data.AppDatabase
 import com.example.taptalk.data.FastSettingsEntity
@@ -450,11 +449,7 @@ class AccActivity : ComponentActivity() {
                 tts?.language = Locale.US
 
                 lifecycleScope.launch {
-                    val db = Room.databaseBuilder(
-                        this@AccActivity,
-                        AppDatabase::class.java,
-                        "tap_talk_db"
-                    ).build()
+                    val db = AppDatabase.getInstance(this@AccActivity)
                     val fastDao = db.fastSettingsDao()
 
                     val firestore = FirebaseFirestore.getInstance()
