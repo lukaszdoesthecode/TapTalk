@@ -16,7 +16,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.room.Room
 import com.example.taptalk.data.*
 import com.example.taptalk.viewmodel.FastSettingsViewModel
 import com.google.firebase.auth.FirebaseAuth
@@ -210,9 +209,7 @@ fun AiOption(name: String, imageRes: Int, selected: Boolean, onClick: () -> Unit
 @Composable
 fun FastSettingsScreen() {
     val context = LocalContext.current
-    val db = remember {
-        Room.databaseBuilder(context, AppDatabase::class.java, "tap_talk_db").build()
-    }
+    val db = remember { AppDatabase.getInstance(context) }
     val repo = remember { FastSettingsRepository(db.fastSettingsDao(), db.historyDao()) }
 
     val userId = FirebaseAuth.getInstance().currentUser?.uid
