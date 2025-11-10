@@ -1,5 +1,4 @@
 package com.example.taptalk
-import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -7,25 +6,8 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.*
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.ImageLoader
-import coil.compose.rememberAsyncImagePainter
 import coil.decode.DataSource
 import coil.decode.ImageSource
 import coil.fetch.FetchResult
@@ -34,31 +16,45 @@ import coil.fetch.SourceResult
 import coil.request.Options
 import okio.buffer
 import okio.source
-import org.burnoutcrew.reorderable.*
 import java.util.Locale
 import android.speech.tts.TextToSpeech
 import com.google.mlkit.nl.smartreply.*
-import com.google.mlkit.nl.smartreply.SmartReplyGenerator
-import androidx.compose.ui.window.Dialog
 import org.json.JSONObject
-import java.nio.charset.Charset
-import coil.request.ImageRequest
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.lifecycleScope
 import com.example.taptalk.data.HistoryRepository
 import kotlinx.coroutines.launch
 import java.io.File
 import androidx.room.Room
 import coil.imageLoader
+import com.example.taptalk.aac.data.AccCard
+import com.example.taptalk.aac.data.VerbForms
+import com.example.taptalk.aac.data.loadAccCards
+import com.example.taptalk.aac.data.loadCustomCards
 import com.example.taptalk.data.AppDatabase
 import com.example.taptalk.data.FastSettingsEntity
+import com.example.taptalk.ui.screen.AccScreen
 import com.example.taptalk.ui.theme.TapTalkTheme
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
-import kotlinx.coroutines.withContext
 
+/**
+ * A map that associates user-friendly voice names (e.g., "Kate", "Josh") with a list of
+ * technical keywords used to identify specific Text-to-Speech (TTS) voices on the device.
+ *
+ * This mapping provides a fallback mechanism to find a suitable voice when the exact
+ * voice name stored in preferences is not available on the current device. The `pickTtsVoice`
+ * function uses the keywords to search for a voice that matches characteristics like gender,
+ * accent, or internal engine identifiers.
+ *
+ * The keys of the map are friendly names presented to the user in settings.
+ * The values are lists of strings, where each string is a keyword or identifier.
+ * The search for a matching voice is case-insensitive.
+ *
+ * Example:
+ * - "Kate" is associated with female voices, including specific US and GB English variants.
+ * - "Sabrina" is associated with female child voices.
+ */
 val TTS_VOICE_MAP = mapOf(
     "Kate" to listOf("female", "en-us-x-sfg", "en-gb-x-fis", "f1"),
     "Josh" to listOf("male", "en-us-x-tpd", "en-gb-x-rjs", "m1"),
@@ -66,11 +62,32 @@ val TTS_VOICE_MAP = mapOf(
     "Sami" to listOf("male", "child", "en-us-x-tpd#male_2", "en-in-x-ism")
 )
 
+/**
+ * A custom [Fetcher] for Coil that handles URIs for Android assets.
+ *
+ * This class is designed to load images from the `assets` directory of the application
+ * using URIs that start with "file:///android_asset/". It decodes the asset path
+ * from the URI, opens an [InputStream] to the asset, and returns it as a [SourceResult]
+ * for Coil to process.
+ *
+ * @property context The application [Context] used to access the assets.
+ * @property uri The [Uri] of the asset to fetch, e.g., "file:///android_asset/images/my_image.png".
+ */
 class AssetUriFetcher(
     private val context: Context,
     private val uri: Uri
 ) : Fetcher {
 
+    /**
+     * Fetches an image from the Android assets folder.
+     *
+     * This method handles URIs with the scheme `file:///android_asset/`.
+     * It strips the prefix to get the relative asset path, opens an
+     * [InputStream] to the asset, and returns it as a [SourceResult]
+     * for Coil to process.
+     *
+     * @return A [FetchResult] containing the image data as a [SourceResult].
+     */
     override suspend fun fetch(): FetchResult {
         val assetPath = uri.toString().removePrefix("file:///android_asset/")
         val input = context.assets.open(assetPath)
@@ -82,6 +99,14 @@ class AssetUriFetcher(
         )
     }
 
+    /**
+     * A factory for creating [AssetUriFetcher] instances.
+     *
+     * This factory checks if a given [Uri] points to an Android asset
+     * (i.e., starts with "file:///android_asset/"). If it does, it creates
+     * an [AssetUriFetcher] to handle fetching the image from the assets folder.
+     * Otherwise, it returns null, allowing Coil to delegate to another fetcher.
+     */
     class Factory(private val context: Context) : Fetcher.Factory<Uri> {
         override fun create(
             data: Uri,
@@ -95,27 +120,20 @@ class AssetUriFetcher(
     }
 }
 
-// ---------------- DATA ----------------
-data class AccCard(
-    val fileName: String,
-    val label: String,
-    val path: String,
-    val folder: String
-)
-
-data class VerbForms(
-    val base: String,
-    val past: String,
-    val perfect: String,
-    val negatives: List<String> = emptyList()
-)
-
-fun loadJsonAsset(context: Context, fileName: String): JSONObject {
-    val input = context.assets.open(fileName)
-    val json = input.bufferedReader(Charset.forName("UTF-8")).use { it.readText() }
-    return JSONObject(json)
-}
-
+/**
+ * Selects a TTS voice based on a user-friendly name.
+ *
+ * This function attempts to find the best available TTS voice that matches the characteristics
+ * associated with a given `friendlyName`. It uses the `TTS_VOICE_MAP` to look up a list
+ * of keywords (e.g., "female", "child", "en-us-x-sfg") for the friendly name. It then
+ * iterates through the available voices on the device and returns the first one whose
+ * name contains any of the associated keywords.
+ *
+ * @param tts The initialized [TextToSpeech] instance from which to get available voices.
+ * @param friendlyName The user-friendly name of the desired voice (e.g., "Kate", "Sami").
+ * @return The best-matching [android.speech.tts.Voice] object, or `null` if no suitable voice is found
+ *         or if the TTS service/voices are unavailable.
+ */
 private fun pickTtsVoice(
     tts: TextToSpeech?,
     friendlyName: String
@@ -128,8 +146,18 @@ private fun pickTtsVoice(
     }
 }
 
-
-private fun negativeIconFor(neg: String): String {
+/**
+ * Selects an appropriate icon asset URI for a given negative verb form.
+ *
+ * This function takes a string containing a negative contraction (e.g., "don't", "won't")
+ * and determines the correct tense (present, past, future, perfect) to select a
+ * corresponding icon. The icon paths are prefixed with the Android asset directory path.
+ *
+ * @param neg The string containing the negative verb form. The function is case-insensitive.
+ * @return A `String` representing the full asset URI (e.g., "file:///android_asset/tenses/negative_present.png")
+ *         for the corresponding tense icon. Defaults to the present tense icon if no match is found.
+ */
+fun negativeIconFor(neg: String): String {
     val n = neg.lowercase()
     val base = "file:///android_asset/tenses/"
 
@@ -150,35 +178,19 @@ private fun negativeIconFor(neg: String): String {
     }
 }
 
-// ---------- FAVOURITES FIREBASE ----------
-fun toggleFavouriteInFirebase(context: Context, card: AccCard, userId: String?, onDone: (Boolean) -> Unit = {}) {
-    if (userId == null) return
-
-    val firestore = FirebaseFirestore.getInstance()
-    val favRef = firestore.collection("USERS").document(userId).collection("Favourites")
-
-    favRef.document(card.label).get()
-        .addOnSuccessListener { doc ->
-            if (doc.exists()) {
-                // already favourite
-                favRef.document(card.label).delete()
-                onDone(false)
-            } else {
-                // not favourite
-                val data = mapOf(
-                    "label" to card.label,
-                    "path" to card.path,
-                    "folder" to card.folder,
-                    "fileName" to card.fileName,
-                    "timestamp" to com.google.firebase.Timestamp.now()
-                )
-                favRef.document(card.label).set(data)
-                onDone(true)
-            }
-        }
-}
-
-
+/**
+ * Retrieves the base, past, perfect, and negative forms of a given verb.
+ *
+ * This function first checks for special hardcoded verbs (like "be", "have", "will")
+ * using [specialVerbForms]. If not found, it queries a provided [JSONObject] for
+ * irregular verb forms. If the verb is not in the JSON data, it assumes a regular
+ * verb and forms the past and perfect tenses by appending "ed".
+ *
+ * @param verb The base form of the verb to look up (e.g., "go", "walk").
+ * @param json A [JSONObject] where keys are lowercase base verbs and values are objects
+ *             containing "past", "perfect", and "negatives" forms.
+ * @return A [VerbForms] data class containing the different forms of the verb.
+ */
 fun getVerbForms(verb: String, json: JSONObject): VerbForms {
     specialVerbForms(verb)?.let { return it }
 
@@ -199,7 +211,19 @@ fun getVerbForms(verb: String, json: JSONObject): VerbForms {
     return VerbForms(v, v + "ed", v + "ed")
 }
 
-
+/**
+ * Determines the border color for an AAC (Augmentative and Alternative Communication) card
+ * based on its folder name, which typically corresponds to a grammatical category.
+ *
+ * This function implements a color-coding system (e.g., the Fitzgerald Key) to visually
+ * distinguish different typesof words. For example, verbs are green, nouns are orange, etc.
+ * The folder name is matched case-insensitively against keywords for different
+ * parts of speech.
+ *
+ * @param folder The name of the folder containing the card's image, used to infer its grammatical category.
+ * @return A [Color] object representing the appropriate border color. Defaults to [Color.Black]
+ *         if no specific category is matched.
+ */
 fun borderColorFor(folder: String): Color {
     val f = folder.lowercase()
     return when {
@@ -218,6 +242,17 @@ fun borderColorFor(folder: String): Color {
     }
 }
 
+// ---------------- UTIL: GRID ORDER ----------------
+val largeGridOrder: List<String?> = listOf(
+    "what_A1","I_A1","we_A1","have_A1","know_A1", "eat_A1", "child_A1","place_A1","time_A1","hand_A1","good_A1","bad_A1", "boring_A1",
+    "how_A1","you_A1","they_A1","come_A1","make_A1", "drink_A1","man_A1","world_A1","year_A1","thing_A1","thirsty_A2","hungry_A1", "wrong_A1",
+    "why_A1","he_A1","be_A1","do_A1","say_A1", "think_A1","woman_A1","house_A1","week_A1","bathroom_A1","happy_A1","sad_A1", "funny_A1",
+    "where_A1","she_A1","yes_A1","get_A1","see_A1", "study_A2", "person_A1","school_A1","life_A1","food_A1","tired_A1","calm_B1", "polite_A2",
+    "who_A1","it_A1","no_A1","go_B1","create_A1", "will_A1", "friend_A1","job_A1","family_A1","water_A1","beautiful_A1","pretty_A1", "brilliant_A2",
+    "when_A1","my_A1","your_A1","hello_A1","good_morning_A1","bye_A1","thanks_A1","please_A1","sorry_A1","great_A1","and_A1", "or_A1", "because_A1",
+    "whose_A1", "a_A1", "an_A1", "the_A1", "toothache_A2", "backache_B1", "headache_A1", "ache_B1", "dizzy_A2", "sore_B1", "to_A1", "of_A1", "from_A1",
+    null,null,null,null,null,null,null,null,null,null,null
+)
 
 val gridOrder: List<String?> = listOf(
     "what_A1","I_A1","we_A1","have_A1","know_A1","child_A1","place_A1","time_A1","hand_A1","good_A1","bad_A1",
@@ -238,128 +273,17 @@ val smallGridOrder: List<String?> = listOf(
     null,null,null,null,null,null,null,null,null
 )
 
-fun loadAccCards(context: Context): List<AccCard> {
-    val assetManager = context.assets
-
-    fun walk(path: String, topCategory: String? = null): List<AccCard> {
-        val files = assetManager.list(path) ?: return emptyList()
-
-        return files.flatMap { name ->
-            val fullPath = if (path.isEmpty()) name else "$path/$name"
-            val children = assetManager.list(fullPath) ?: emptyArray()
-
-            if (children.isNotEmpty()) {
-                val cat = topCategory ?: name
-                walk(fullPath, cat)
-            }
-            else if (name.endsWith(".png") || name.endsWith(".jpg")) {
-                val category = topCategory ?: path.substringAfterLast("/")
-                listOf(
-                    AccCard(
-                        fileName = name,
-                        label = normalizeFileName(name),
-                        path = "file:///android_asset/$fullPath",
-                        folder = category.lowercase()
-                    )
-                )
-            }
-            else emptyList()
-        }
-    }
-
-    return walk("ACC_board") + walk("categories")
-}
-
-fun loadFavourites(context: Context, userId: String?, onLoaded: (List<AccCard>) -> Unit) {
-    if (userId == null) {
-        onLoaded(emptyList())
-        return
-    }
-
-    val firestore = FirebaseFirestore.getInstance()
-    firestore.collection("USERS").document(userId).collection("Favourites")
-        .get()
-        .addOnSuccessListener { snapshot ->
-            val favs = snapshot.documents.mapNotNull { doc ->
-                val label = doc.getString("label") ?: return@mapNotNull null
-                val path = doc.getString("path") ?: return@mapNotNull null
-                val folder = doc.getString("folder") ?: "favourites"
-                val fileName = doc.getString("fileName") ?: "$label.png"
-                AccCard(fileName, label, path, folder)
-            }
-            onLoaded(favs)
-        }
-}
-
-
-fun loadCustomCards(context: Context): List<AccCard> {
-    val rootDir = File(context.filesDir, "Custom_Words")
-    if (!rootDir.exists()) return emptyList()
-
-    val customCards = mutableListOf<AccCard>()
-
-    rootDir.walkTopDown().forEach { file ->
-        if (file.isFile && (file.extension == "jpg" || file.extension == "png")) {
-            val folderName = file.parentFile?.name ?: "custom"
-            val label = file.nameWithoutExtension
-            customCards.add(
-                AccCard(
-                    fileName = file.name,
-                    label = label.replaceFirstChar { it.uppercase() },
-                    path = file.absolutePath,
-                    folder = folderName
-                )
-            )
-        }
-    }
-
-    return customCards
-}
-
-// ---------- Category buttons ---------------
-fun trimCategoryName(fileName: String): String {
-    var name = fileName.substringBeforeLast('.')
-    name = name.replace("_cathegory","",true)
-        .replace("_category","",true)
-        .replace("_"," ")
-        .trim()
-    return name.replaceFirstChar { it.uppercase() }
-}
-
-fun loadCategories(context: Context): List<AccCard> {
-    val files = context.assets.list("ACC_board/categories") ?: return emptyList()
-
-    val desiredOrder = listOf(
-        "home_category.png",
-        "favourites_category.png",
-        "custom_category.png",
-        "emergency_category.png",
-        "social_category.png",
-        "questions_category.png",
-        "pronouns_category.png",
-        "verbs_category.png",
-        "adjective_category.png",
-        "adverb_category.png",
-        "prepositions_category.png",
-        "conjuction_category.png",
-        "determiners_category.png",
-        "negation_category.png"
-    )
-
-    val sortedFiles = desiredOrder.mapNotNull { orderName ->
-        files.find { it.equals(orderName, ignoreCase = true) }
-    }
-
-    return sortedFiles.map { file ->
-        AccCard(
-            fileName = file,
-            label = trimCategoryName(file),
-            path = "file:///android_asset/ACC_board/categories/$file",
-            folder = "categories"
-        )
-    }
-}
-
+/**
+ * Provides hardcoded `VerbForms` for common irregular verbs like "be", "have", and "will".
+ * These verbs have unique conjugations and negative forms that don't follow standard rules.
+ * This function serves as a quick lookup before attempting to generate forms from a larger JSON file
+ * or applying default rules.
+ *
+ * @param verb The base form of the verb to look up (case-insensitive).
+ * @return A [VerbForms] object containing the past, perfect, and negative forms if the verb
+ * is a special case (e.g., "be", "have", "will"). Returns `null` if the verb is not
+ * found in the hardcoded list, indicating that regular processing should be used.
+ */
 fun specialVerbForms(verb: String): VerbForms? {
     return when (verb.lowercase()) {
         "be" -> VerbForms(
@@ -384,7 +308,24 @@ fun specialVerbForms(verb: String): VerbForms? {
     }
 }
 
-
+/**
+ * Normalizes a file name string into a human-readable label.
+ *
+ * This function performs several transformations:
+ * 1. Removes the file extension.
+ * 2. Strips CEFR level codes (e.g., _A1, _B2) and language codes (e.g., _EN, _PL).
+ * 3. Removes any leading numbers followed by an optional underscore or hyphen.
+ * 4. Replaces underscores and hyphens with spaces.
+ * 5. Collapses multiple spaces into a single space and trims whitespace.
+ * 6. Converts the string to Title Case, but keeps common articles and prepositions
+ *    (e.g., "a", "the", "of") in lowercase, except for the very first word.
+ *
+ * Example: "123-good_morning_A1.png" becomes "Good Morning".
+ * Example: "a_cup_of_tea.png" becomes "A Cup of Tea".
+ *
+ * @param file The raw file name string.
+ * @return A cleaned and title-cased version of the name.
+ */
 fun normalizeFileName(file: String): String {
     var name = file.substringBeforeLast('.')
     name = name.replace(Regex("_(A1|A2|B1|B2|C1|C2|EN|PL|DE|FR|ES)\\b"), "")
@@ -399,7 +340,21 @@ fun normalizeFileName(file: String): String {
 
 }
 
-// ---------------- UTIL: AUTO PLURAL GENERATOR ----------------
+/**
+ * Generates a plural form for a given noun.
+ *
+ * This function first checks a provided JSON object for a manually defined plural form.
+ * If not found, it applies a set of common English pluralization rules:
+ * - Nouns ending in a consonant followed by "y" are changed to "ies" (e.g., "story" -> "stories").
+ * - Nouns ending in "s", "x", "z", "ch", or "sh" get "es" appended (e.g., "box" -> "boxes").
+ * - All other nouns get a simple "s" appended (e.g., "cat" -> "cats").
+ * The comparison is case-insensitive, but the output is based on the lowercase version of the input noun.
+ *
+ * @param noun The singular noun to be pluralized.
+ * @param json A [JSONObject] containing a mapping of lowercase singular nouns to their
+ *             irregular plural forms. This is checked first.
+ * @return The suggested plural form of the noun as a [String].
+ */
 fun suggestPlural(noun: String, json: JSONObject): String {
     val lower = noun.lowercase()
     if (json.has(lower)) return json.getString(lower)
@@ -417,7 +372,6 @@ fun suggestPlural(noun: String, json: JSONObject): String {
     }
 }
 
-// ---------------- ACTIVITY ----------------
 class AccActivity : ComponentActivity() {
 
     private var tts: TextToSpeech? = null
@@ -460,7 +414,7 @@ class AccActivity : ComponentActivity() {
                     val firestore = FirebaseFirestore.getInstance()
                     val userId = FirebaseAuth.getInstance().currentUser?.uid
 
-                    // --- Load settings ---
+                    // Load settings
                     var settings = fastDao.getSettings()
                     if (settings == null || !settings.isSynced) {
                         val snapshot = firestore.collection("USERS")
@@ -603,6 +557,17 @@ class AccActivity : ComponentActivity() {
     }
 
 
+    /**
+     * Handles the logic for speaking a given text string and saving it to history.
+     *
+     * This function retrieves the user's "autoSpeak" and "aiSupport" settings from Firestore.
+     * If "autoSpeak" is enabled, it uses the Text-to-Speech engine to voice the provided text.
+     * It always saves the sentence to the local history database and triggers a sync with Firebase.
+     * If "aiSupport" is enabled, the text is also added to the `baseConversation` list,
+     * which is used to generate smart replies.
+     *
+     * @param text The string of text to be spoken and logged.
+     */
     private fun speakOut(text: String) {
         val userId = FirebaseAuth.getInstance().currentUser?.uid
         val firestore = FirebaseFirestore.getInstance()
@@ -627,7 +592,6 @@ class AccActivity : ComponentActivity() {
                 e.printStackTrace()
             }
 
-            // speak only if autoSpeak is ON
             if (autoSpeak) {
                 tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ACC_UTTERANCE")
             }
@@ -636,902 +600,22 @@ class AccActivity : ComponentActivity() {
             repo.saveSentenceOffline(text)
             repo.syncToFirebase()
 
-            // add to SmartReply base conversation only if aiSupport is ON
             if (smartReplyEnabled) {
                 baseConversation.add(TextMessage.createForLocalUser(text, System.currentTimeMillis()))
             }
         }
     }
 
-
+    /**
+     * Called when the activity is being destroyed.
+     * This method stops and shuts down the Text-to-Speech (TTS) engine
+     * to release its resources and prevent memory leaks. It then calls the
+     * superclass's implementation of onDestroy to complete the activity's
+     * lifecycle cleanup.
+     */
     override fun onDestroy() {
         tts?.stop()
         tts?.shutdown()
         super.onDestroy()
-    }
-}
-
-
-// ---------------- UI ----------------
-@Composable
-fun AccScreen(
-    imageLoader: ImageLoader,
-    smartReply: SmartReplyGenerator,
-    baseConversation: List<TextMessage>,
-    spacing: Dp = 6.dp,
-    speak: (String) -> Unit
-) {
-    var selectedCategory by remember { mutableStateOf<String?>(null) }
-    val context = LocalContext.current
-    var autoSpeak by remember { mutableStateOf(true) }
-    var smartReplyEnabled by remember { mutableStateOf(true) }
-
-    val irregularVerbJson = remember { loadJsonAsset(context, "irregular_verbs.json") }
-    val irregularPluralJson = remember { loadJsonAsset(context, "irregular_nouns.json") }
-
-    var showPopup by remember { mutableStateOf(false) }
-    var selectedCard by remember { mutableStateOf<AccCard?>(null) }
-    val chosen = remember { mutableStateListOf<AccCard>() }
-    var suggestions by remember { mutableStateOf<List<AccCard>>(emptyList()) }
-
-    var accCards by remember { mutableStateOf<List<AccCard>>(emptyList()) }
-    LaunchedEffect(Unit) {
-        accCards = withContext(kotlinx.coroutines.Dispatchers.IO) { loadAccCards(context) }
-    }
-    val accDict = remember(accCards) { accCards.associateBy { it.label.lowercase() } }
-
-
-    LaunchedEffect(chosen.toList(), smartReplyEnabled) {
-        val sentence = chosen.joinToString(" ") { it.label }
-
-        if (sentence.isNotBlank()) {
-            if (smartReplyEnabled) {
-                val conversation = ArrayList<TextMessage>(baseConversation)
-                conversation.add(TextMessage.createForLocalUser(sentence, System.currentTimeMillis()))
-                val sorted = conversation.sortedBy { it.timestampMillis }
-
-                smartReply.suggestReplies(sorted)
-                    .addOnSuccessListener { result ->
-                        if (result.status == SmartReplySuggestionResult.STATUS_SUCCESS) {
-                            suggestions = result.suggestions.mapNotNull { accDict[it.text.lowercase()] }
-                        } else {
-                            suggestions = emptyList()
-                        }
-                    }
-                    .addOnFailureListener { e ->
-                        Log.e("ACC_DEBUG", "SmartReply failed", e)
-                        suggestions = emptyList()
-                    }
-            } else {
-                suggestions = emptyList()
-            }
-        } else {
-            suggestions = emptyList()
-        }
-    }
-
-    var gridSize by remember { mutableStateOf("Medium") }
-    LaunchedEffect(Unit) {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid
-        if (uid != null) {
-            val snap = FirebaseFirestore.getInstance()
-                .collection("USERS").document(uid)
-                .collection("Fast_Settings").document("current")
-                .get()
-                .await()
-
-            autoSpeak = snap.getBoolean("autoSpeak") ?: true
-            smartReplyEnabled = snap.getBoolean("aiSupport") ?: true
-
-            val savedGrid = snap.getString("gridSize") ?: "Medium"
-            gridSize = savedGrid
-        }
-    }
-
-    val (rows, cols) = when (gridSize) {
-        "Small" -> 5 to 9
-        "Large" -> 7 to 13
-        else -> 6 to 11
-    }
-    val perPage = rows * cols
-
-    val builtInCards = remember { loadAccCards(context) }
-    val customCards = remember { loadCustomCards(context) }
-    val allCards = remember { builtInCards + customCards }
-
-    val favs = remember { mutableStateListOf<AccCard>() }
-    LaunchedEffect(selectedCategory) {
-        if (selectedCategory.equals("favourites", ignoreCase = true)) {
-            loadFavourites(
-                context,
-                FirebaseAuth.getInstance().currentUser?.uid
-            ) { list ->
-                favs.clear(); favs.addAll(list)
-            }
-        }
-    }
-
-    var visibleLevels by remember { mutableStateOf(listOf("A1", "A2", "B1")) }
-
-    LaunchedEffect(Unit) {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid
-        if (uid != null) {
-            val snap = FirebaseFirestore.getInstance()
-                .collection("USERS").document(uid)
-                .collection("Fast_Settings").document("current")
-                .get().await()
-            val list = snap.get("visibleLevels") as? List<*>
-            visibleLevels = list?.filterIsInstance<String>() ?: listOf("A1", "A2", "B1")
-        }
-    }
-
-    val visibleCardsAll by remember(selectedCategory, allCards, favs.toList(), gridSize, visibleLevels) {
-        derivedStateOf {
-            fun levelOf(fileName: String): String? =
-                Regex("_(A1|A2|B1|B2|C1|C2)").find(fileName)?.groupValues?.get(1)
-
-            fun levelPass(fileName: String): Boolean {
-                val lvl = levelOf(fileName)
-                return (lvl == null) || visibleLevels.contains(lvl)
-            }
-
-            fun keepSlotsWithLevels(list: List<AccCard>): List<AccCard?> =
-                list.map { card -> if (levelPass(card.fileName)) card else null }
-
-            when {
-                selectedCategory.equals("favourites", ignoreCase = true) -> favs.map { it as AccCard? }
-
-                selectedCategory.equals("custom", ignoreCase = true) -> {
-                    val customs = allCards.filter { it.folder.startsWith("custom", ignoreCase = true) }
-                    keepSlotsWithLevels(customs)
-                }
-
-                !selectedCategory.isNullOrBlank() -> {
-                    val inCat = allCards.filter { it.folder.startsWith(selectedCategory!!, ignoreCase = true) }
-                    keepSlotsWithLevels(inCat)
-                }
-
-                else -> {
-                    val order = when (gridSize) {
-                        "Small" -> smallGridOrder
-                        else -> gridOrder
-                    }
-
-                    val byBase = allCards.associateBy { it.fileName.substringBeforeLast('.').lowercase() }
-
-                    val curated: List<AccCard?> = order.map { key ->
-                        if (key == null) return@map null
-                        val card = byBase[key.lowercase()]
-                        if (card != null && levelPass(card.fileName)) card else null
-                    }
-
-                    curated
-                }
-            }
-        }
-    }
-    var page by remember { mutableStateOf(0) }
-
-    LaunchedEffect(selectedCategory, gridSize, visibleLevels) {
-        page = 0
-    }
-
-
-    val nonNullCount = visibleCardsAll.count { it != null }
-    val pageCount = if (nonNullCount == 0) 1 else (nonNullCount + perPage - 1) / perPage
-    LaunchedEffect(visibleCardsAll.size, perPage) {
-        if (page >= pageCount) page = (pageCount - 1).coerceAtLeast(0)
-    }
-    val pageSlice = remember(page, visibleCardsAll, perPage) {
-        visibleCardsAll.drop(page * perPage).take(perPage)
-    }
-
-    // ===== UI =====
-    Scaffold(bottomBar = { BottomNavBar() }) { innerPadding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(innerPadding)
-        ) {
-            TopWhiteBar(
-                chosen = chosen,
-                spacing = spacing,
-                modifier = Modifier.fillMaxWidth().height(80.dp),
-                imageLoader = imageLoader,
-                painterCache = mutableMapOf(), // not used here
-                onReorder = { from, to -> chosen.add(to, chosen.removeAt(from)) },
-                onRemove = { idx -> chosen.removeAt(idx) },
-                onClearAll = { chosen.clear() },
-                onPlayStop = {
-                    val sentence = chosen.joinToString(" ") { it.label }
-                    if (sentence.isNotBlank()) speak(sentence)
-                },
-                onSpeakWord = { word -> speak(word) }
-            )
-
-            GreenBar(
-                cards = suggestions,
-                spacing = spacing,
-                imageLoader = imageLoader,
-                onSuggestionClick = { card -> if (chosen.size < 14) chosen.add(card) },
-                page = page,
-                pageCount = pageCount,
-                onPrev = { if (page > 0) page-- },
-                onNext = { if (page < pageCount - 1) page++ },
-                modifier = Modifier.fillMaxWidth().height(90.dp)
-            )
-
-            AACBoardGrid(
-                imageLoader = imageLoader,
-                painterCache = mutableMapOf(),
-                rows = rows,
-                cols = cols,
-                gridSize = gridSize,
-                visibleCards = pageSlice,
-                favs = favs,
-                onCardClick = { card -> if (chosen.size < 14) chosen.add(card) },
-                onCardLongPress = { card ->
-                    when {
-                        card.folder.contains("noun", ignoreCase = true) -> {
-                            val plural = suggestPlural(card.label, irregularPluralJson)
-                            if (chosen.size < 14) chosen.add(card.copy(label = plural))
-                        }
-
-                        card.folder == "verbs" -> {
-                            selectedCard = card
-                            showPopup = true
-                        }
-
-                        card.label.equals("will", ignoreCase = true) -> {
-                            selectedCard = card
-                            showPopup = true
-                        }
-
-                        else -> if (chosen.size < 14) chosen.add(card)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            )
-
-            CategoryBar(
-                imageLoader = imageLoader,
-                onCategorySelected = { selectedCategory = it },
-                modifier = Modifier.fillMaxWidth().height(90.dp)
-            )
-        }
-    }
-
-    if (showPopup && selectedCard != null && selectedCard!!.folder == "verbs") {
-        Dialog(onDismissRequest = { showPopup = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .border(4.dp, Color.Black, RoundedCornerShape(12.dp)),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(20.dp)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    val baseVerb = selectedCard!!.label.lowercase()
-                    val forms = getVerbForms(baseVerb, irregularVerbJson)
-
-                    val presentVariants = when (baseVerb) {
-                        "be" -> listOf("am", "is", "are")
-                        "have" -> listOf("have", "has")
-                        else -> emptyList()
-                    }
-
-                    val mainForms = buildList {
-                        add("Past" to forms.past)
-                        if (!forms.perfect.equals(forms.past, ignoreCase = true)) {
-                            add("Perfect" to forms.perfect)
-                        }
-                        add("Present" to forms.base)
-                    }
-
-                    Text(
-                        text = "Choose tense for: ${selectedCard!!.label}",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.wrapContentWidth()
-                    ) {
-                        mainForms.forEach { (tenseName, label) ->
-                            val imagePath = "file:///android_asset/tenses/${tenseName.lowercase()}.png"
-                            Box(
-                                modifier = Modifier
-                                    .size(90.dp)
-                                    .border(2.dp, Color(0xFFFFA500), RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFD1D1D1), RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        chosen.add(selectedCard!!.copy(label = label))
-                                        showPopup = false
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxSize().padding(4.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.SpaceEvenly
-                                ) {
-                                    Image(
-                                        painter = rememberAsyncImagePainter(Uri.parse(imagePath), imageLoader),
-                                        contentDescription = tenseName,
-                                        modifier = Modifier.weight(1f).fillMaxWidth()
-                                    )
-                                    Text(label, fontSize = 12.sp, color = Color.Black, textAlign = TextAlign.Center)
-                                }
-                            }
-                        }
-                    }
-
-                    if (presentVariants.isNotEmpty()) {
-                        Text("Present Forms", style = MaterialTheme.typography.titleMedium)
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.wrapContentWidth()
-                        ) {
-                            presentVariants.forEach { form ->
-                                Box(
-                                    modifier = Modifier
-                                        .size(90.dp)
-                                        .border(2.dp, Color(0xFF81C784), RoundedCornerShape(8.dp))
-                                        .background(Color(0xFFD1D1D1), RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            chosen.add(selectedCard!!.copy(label = form))
-                                            showPopup = false
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(form, fontSize = 16.sp, color = Color.Black, textAlign = TextAlign.Center)
-                                }
-                            }
-                        }
-                    }
-
-                    if (forms.negatives.isNotEmpty()) {
-                        Text("Negatives", style = MaterialTheme.typography.titleMedium)
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.wrapContentWidth()
-                        ) {
-                            forms.negatives.forEach { neg ->
-                                val negPath = negativeIconFor(neg)
-                                Box(
-                                    modifier = Modifier
-                                        .size(90.dp)
-                                        .border(2.dp, Color.Red, RoundedCornerShape(8.dp))
-                                        .background(Color(0xFFD1D1D1), RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            chosen.add(selectedCard!!.copy(label = neg))
-                                            showPopup = false
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        modifier = Modifier.fillMaxSize().padding(4.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.SpaceEvenly
-                                    ) {
-                                        Image(
-                                            painter = rememberAsyncImagePainter(Uri.parse(negPath), imageLoader),
-                                            contentDescription = "Negative",
-                                            modifier = Modifier.weight(1f).fillMaxWidth()
-                                        )
-                                        Text(neg, fontSize = 12.sp, color = Color.Black, textAlign = TextAlign.Center)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(100.dp)
-                            .border(2.dp, Color.Red, RoundedCornerShape(8.dp))
-                            .background(Color.LightGray, RoundedCornerShape(8.dp))
-                            .clickable { showPopup = false },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxSize().padding(4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            Image(
-                                painter = rememberAsyncImagePainter(
-                                    Uri.parse("file:///android_asset/tenses/negative_present.png"),
-                                    imageLoader
-                                ),
-                                contentDescription = "Cancel",
-                                modifier = Modifier.weight(1f).fillMaxWidth()
-                            )
-                            Text("Cancel", fontSize = 12.sp, color = Color.Red, textAlign = TextAlign.Center)
-                        }
-                    }
-                }
-            }        }
-    }
-}
-
-
-@SuppressLint("RememberReturnType")
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun AACBoardGrid(
-    imageLoader: ImageLoader,
-    painterCache: Map<String, Painter>,
-    rows: Int,
-    cols: Int,
-    gridSize: String,
-    visibleCards: List<AccCard?>,
-    favs: List<AccCard>,
-    onCardClick: (AccCard) -> Unit,
-    onCardLongPress: (AccCard) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-
-    Column(
-        modifier = modifier.padding(4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        for (row in 0 until rows) {
-            Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                for (col in 0 until cols) {
-                    val idx = row * cols + col
-                    val card = visibleCards.getOrNull(idx)
-
-                    if (card == null) {
-                        // EMPTY SLOT
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .border(2.dp, Color(0xFFBDBDBD), RoundedCornerShape(10.dp))
-                                .background(Color(0xFFF3F3F3), RoundedCornerShape(10.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(" ", color = Color.Gray, fontSize = 10.sp)
-                        }
-                        continue
-                    }
-
-                    val borderColor = borderColorFor(card.folder)
-                    val bgColor = borderColor.copy(alpha = 0.2f)
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .border(2.dp, borderColor, RoundedCornerShape(10.dp))
-                            .background(bgColor, RoundedCornerShape(10.dp))
-                            .combinedClickable(
-                                onClick = { onCardClick(card) },
-                                onLongClick = { onCardLongPress(card) },
-                                onDoubleClick = {
-                                    toggleFavouriteInFirebase(
-                                        context,
-                                        card,
-                                        FirebaseAuth.getInstance().currentUser?.uid
-                                    ) { added ->
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            if (added) "❤️ Added to Favourites" else "💔 Removed from Favourites",
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                }
-                            )
-                            .padding(4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            val painter = rememberAsyncImagePainter(
-                                model = ImageRequest.Builder(context)
-                                    .data(Uri.parse(card.path))
-                                    .crossfade(true)
-                                    .build(),
-                                imageLoader = imageLoader
-                            )
-
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(6.dp))
-                            ) {
-                                Image(
-                                    painter = painter,
-                                    contentDescription = card.label,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                                if (favs.any { it.label == card.label }) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .padding(4.dp)
-                                            .background(Color.White.copy(alpha = 0.7f), RoundedCornerShape(50))
-                                            .padding(2.dp)
-                                    ) {
-                                        Text("❤️", fontSize = 14.sp)
-                                    }
-                                }
-                            }
-
-                            Text(
-                                text = card.label,
-                                fontSize = when (gridSize) {
-                                    "Small" -> 14.sp
-                                    "Large" -> 10.sp
-                                    else -> 12.sp
-                                },
-                                textAlign = TextAlign.Center,
-                                color = Color.Black
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-
-
-// --------------- CATEGORY BAR ---------------
-@Composable
-fun CategoryBar(
-    imageLoader: ImageLoader,
-    onCategorySelected: (String?) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    val categories = remember { loadCategories(context) }
-
-    val visibleCount = 9
-    val maxStart = (categories.size - visibleCount).coerceAtLeast(0)
-    var startIndex by remember { mutableStateOf(0) }
-
-    val endIndex = (startIndex + visibleCount).coerceAtMost(categories.size)
-    val visibleCats = categories.subList(startIndex, endIndex)
-
-    Row(
-        modifier = modifier
-            .background(Color(0xFFEFEFEF))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // ← back button
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .border(3.dp, Color.Black, RoundedCornerShape(8.dp))
-                .background(Color.LightGray, RoundedCornerShape(8.dp))
-                .clickable {
-                    startIndex = (startIndex - visibleCount).coerceAtLeast(0)
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.ArrowBack, contentDescription = "Prev", tint = Color.Black)
-        }
-
-        // actual category tiles
-        visibleCats.forEach { cat ->
-            val label = cat.label.lowercase()
-            val borderColor = when {
-                label.contains("home") || label.contains("favourites") || label.contains("custom") -> Color.Black
-                else -> borderColorFor(label)
-            }
-            val bgColor = borderColor.copy(alpha = 0.25f)
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .border(4.dp, borderColor, RoundedCornerShape(10.dp))
-                    .background(bgColor, RoundedCornerShape(10.dp))
-                    .clickable {
-                        if (label == "home") onCategorySelected(null)
-                        else onCategorySelected(label)
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Image(
-                        painter = rememberAsyncImagePainter(
-                            model = Uri.parse(cat.path),
-                            imageLoader = imageLoader
-                        ),
-                        contentDescription = cat.label,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp))
-                    )
-                    Text(
-                        text = cat.label,
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-        }
-
-        // → next button
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .border(3.dp, Color.Black, RoundedCornerShape(8.dp))
-                .background(Color.LightGray, RoundedCornerShape(8.dp))
-                .clickable {
-                    startIndex = (startIndex + visibleCount).coerceAtMost(maxStart)
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.ArrowForward, contentDescription = "Next", tint = Color.Black)
-        }
-    }
-}
-
-@Composable
-fun CategorySquareButton(
-    icon: ImageVector,
-    contentDesc: String,
-    enabled: Boolean,
-    width: Dp = 80.dp,
-    height: Dp = 70.dp,
-    onClick: () -> Unit
-) {
-    val shape = RoundedCornerShape(4.dp)
-    val borderColor = if (enabled) Color.Black else Color.Gray
-    val bg = if (enabled) Color(0xFFD9D9D9) else Color(0xFFE8E8E8)
-
-    Box(
-        modifier = Modifier
-            .width(width)
-            .height(height)
-            .border(2.dp, borderColor, shape)
-            .background(bg, shape)
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = contentDesc, tint = if (enabled) Color.Black else Color.Gray)
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun TopWhiteBar(
-    chosen: List<AccCard>,
-    modifier: Modifier = Modifier,
-    spacing: Dp = 6.dp,
-    imageLoader: ImageLoader,
-    painterCache: MutableMap<String, Painter>,
-    onReorder: (Int, Int) -> Unit = { _, _ -> },
-    onRemove: (Int) -> Unit = {},
-    onClearAll: () -> Unit = {},
-    onPlayStop: () -> Unit = {},
-    onSpeakWord: (String) -> Unit = {}
-) {
-    val state = rememberReorderableLazyListState(
-        onMove = { from, to -> onReorder(from.index, to.index) }
-    )
-    Row(
-        modifier = modifier
-            .background(Color.White)
-            .padding(horizontal = spacing, vertical = spacing / 2),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        LazyRow(
-            state = state.listState,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .reorderable(state)
-                .detectReorderAfterLongPress(state),
-            horizontalArrangement = Arrangement.spacedBy(spacing),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            items(chosen.size, key = { it }) { index ->
-                val card = chosen[index]
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .aspectRatio(1f)
-                        .detectReorder(state)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .border(2.dp, borderColorFor(card.folder), RoundedCornerShape(4.dp))
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFFD9D9D9))
-                            .combinedClickable(
-                                onClick = { onSpeakWord(card.label) },
-                                onLongClick = { onRemove(index) }
-                            ),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        val painter = rememberAsyncImagePainter(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(Uri.parse(card.path))
-                                .crossfade(true)
-                                .build(),
-                            imageLoader = imageLoader
-                        )
-
-                        Image(
-                            painter = painter,
-                            contentDescription = card.label,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                        )
-                        Text(card.label, fontSize = 12.sp, textAlign = TextAlign.Center)
-
-                    }
-                }
-            }
-        }
-        IconButton(onClick = onClearAll) {
-            Icon(Icons.Default.Delete, contentDescription = "Clear all")
-        }
-        IconButton(onClick = onPlayStop) {
-            Icon(Icons.Default.PlayArrow, contentDescription = "Play/Stop")
-        }
-    }
-}
-
-// ---------------- GREEN BAR ----------------
-@Composable
-fun GreenBar(
-    cards: List<AccCard>,
-    spacing: Dp,
-    modifier: Modifier = Modifier,
-    imageLoader: ImageLoader,
-    onSuggestionClick: (AccCard) -> Unit,
-    page: Int,
-    pageCount: Int,
-    onPrev: () -> Unit,
-    onNext: () -> Unit
-) {
-    val canGoPrev = page > 0
-    val canGoNext = page < pageCount - 1
-
-    Row(
-        modifier = modifier
-            .background(Color(0xFFDFF0D8))
-            .fillMaxWidth()
-            .padding(horizontal = spacing, vertical = spacing),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        CategorySquareButton(
-            icon = Icons.Default.ArrowBack,
-            contentDesc = "Previous page",
-            enabled = canGoPrev,
-            onClick = { if (canGoPrev) onPrev() }
-        )
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(spacing),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                cards.forEach { card ->
-                    Box(
-                        modifier = Modifier
-                            .height(70.dp)
-                            .width(80.dp)
-                            .border(2.dp, borderColorFor(card.folder), RoundedCornerShape(4.dp))
-                            .background(Color(0xFFD9D9D9), RoundedCornerShape(4.dp))
-                            .clickable { onSuggestionClick(card) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxSize().padding(2.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Image(
-                                painter = rememberAsyncImagePainter(
-                                    model = Uri.parse(card.path),
-                                    imageLoader = imageLoader
-                                ),
-                                contentDescription = card.label,
-                                modifier = Modifier.weight(1f).fillMaxWidth()
-                            )
-                            Text(card.label, fontSize = 12.sp, textAlign = TextAlign.Center)
-                        }
-                    }
-                }
-            }
-        }
-
-        CategorySquareButton(
-            icon = Icons.Default.ArrowForward,
-            contentDesc = "Next page",
-            enabled = canGoNext,
-            onClick = { if (canGoNext) onNext() }
-        )
-    }
-}
-
-@Composable
-fun BottomNavBar() {
-    val context = LocalContext.current
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(50.dp)
-            .background(Color(0xFFDFF0D8))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly
-    ) {
-        IconButton(onClick = {
-            context.startActivity(
-                android.content.Intent(context, FastSettingsActivity::class.java)
-            )
-        }) {
-            Icon(Icons.Default.Tune, contentDescription = "Quick Settings")
-        }
-
-        IconButton(onClick = {
-            context.startActivity(
-                android.content.Intent(context, KeyboardActivity::class.java)
-            )
-        }) {
-            Icon(Icons.Default.Keyboard, contentDescription = "Keyboard")
-        }
-
-        IconButton(onClick = {
-            context.startActivity(
-                android.content.Intent(context, AccActivity::class.java)
-            )
-        }) {
-            Icon(Icons.Default.Home, contentDescription = "Home")
-        }
-        IconButton(onClick = {
-            context.startActivity(
-                android.content.Intent(context, CreateCardActivity::class.java)
-            )
-        }) {
-            Icon(Icons.Default.Add, contentDescription = "Create")
-        }
-        IconButton(onClick = {
-            context.startActivity(
-                android.content.Intent(context, SettingsActivity::class.java)
-            ) }) {
-            Icon(Icons.Default.Settings, contentDescription = "Settings")
-        }
     }
 }

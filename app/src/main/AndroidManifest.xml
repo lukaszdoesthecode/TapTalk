@@ -44,6 +44,11 @@
         <!-- Custom words manager -->
         <activity android:name=".CustomWordsManagerActivity" />
 
+        <activity android:name=".CreateCategoryActivity" />
+
+        <activity android:name=".CustomCategoriesManagerActivity" />
+
+        <activity android:name=".ManageCategoryWordsActivity" />
 
     </application>
 </manifest>

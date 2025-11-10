@@ -23,9 +23,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.taptalk.ui.components.BottomNavBar
 import com.google.mlkit.nl.smartreply.*
 import kotlinx.coroutines.tasks.await
 import java.util.*
+
+fun generateKeyboardSuggestions(userText: String): List<String> {
+    val text = userText.lowercase()
+    return when {
+        text.contains("hungry") || text.contains("eat") -> listOf("Let's eat!", "I want food", "What’s for lunch?")
+        text.contains("tired") || text.contains("sleep") -> listOf("I need rest", "So sleepy...", "Let’s nap")
+        text.contains("happy") -> listOf("Yay!", "That’s great!", "I’m so happy")
+        text.contains("sad") -> listOf("I feel down", "I need a hug", "Not feeling good")
+        text.contains("angry") -> listOf("I’m mad", "That’s annoying!", "I need a break")
+        text.contains("help") -> listOf("Please help me", "Call someone", "I need assistance")
+        text.contains("hello") || text.contains("hi") -> listOf("Hi there!", "Hey!", "How are you?")
+        text.contains("thanks") -> listOf("You’re welcome!", "No problem!", "Anytime!")
+        else -> listOf("Yes", "No", "Maybe", "Let’s go!")
+    }
+}
+
 
 /**
  * The main activity for the keyboard screen of the TapTalk application.
@@ -222,14 +239,24 @@ fun KeyboardScreen(speak: (String) -> Unit, modifier: Modifier = Modifier) {
         TextMessage.createForRemoteUser("Doing good! Want to meet later?", System.currentTimeMillis() - 10000, "user1")
     )
 
-    LaunchedEffect(Unit) {
-        try {
-            val result = smartReply.suggestReplies(conversation).await()
-            if (result.status == SmartReplySuggestionResult.STATUS_SUCCESS) {
-                smartReplies = result.suggestions.map { it.text }.take(3)
+    LaunchedEffect(text) {
+        if (text.isNotBlank()) {
+            try {
+                val result = smartReply.suggestReplies(conversation).await()
+                if (result.status == SmartReplySuggestionResult.STATUS_SUCCESS) {
+                    val replies = result.suggestions.map { it.text }
+                        .filter { it.lowercase() !in listOf("nice", "ok", "okay", "sure") }
+
+                    smartReplies = if (replies.isNotEmpty()) replies.take(3)
+                    else generateKeyboardSuggestions(text)
+                } else {
+                    smartReplies = generateKeyboardSuggestions(text)
+                }
+            } catch (e: Exception) {
+                smartReplies = generateKeyboardSuggestions(text)
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        } else {
+            smartReplies = emptyList()
         }
     }
 

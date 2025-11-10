@@ -24,8 +24,12 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import android.content.Context
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.work.*
 import com.example.taptalk.data.FastSettingsEntity
+import com.example.taptalk.ui.components.BottomNavBar
+import com.google.firebase.auth.EmailAuthProvider
+import kotlinx.coroutines.withContext
 
 /**
  * An activity that displays the application's settings screen.
@@ -283,10 +287,19 @@ fun SettingsDropdown(title: String, options: List<String>, selected: String, onS
 fun SettingsScreen() {
     val context = LocalContext.current
 
-    val db = remember {
-        Room.databaseBuilder(context, AppDatabase::class.java, "tap_talk_db").build()
+    var fastRepo by remember { mutableStateOf<FastSettingsRepository?>(null) }
+
+    LaunchedEffect(Unit) {
+        withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val db = Room.databaseBuilder(
+                context.applicationContext,
+                AppDatabase::class.java,
+                "tap_talk_db"
+            ).build()
+            fastRepo = FastSettingsRepository(db.fastSettingsDao(), db.historyDao())
+        }
     }
-    val fastRepo = remember { FastSettingsRepository(db.fastSettingsDao(), db.historyDao()) }
+
     val coroutineScope = rememberCoroutineScope()
 
     val ttsState = remember { mutableStateOf<TextToSpeech?>(null) }
@@ -380,14 +393,14 @@ fun SettingsScreen() {
                         updateSetting("autoSpeak", it)
 
                         coroutineScope.launch {
-                            val local = fastRepo.getLocalSettings()
+                            val local = fastRepo?.getLocalSettings()
                             val updated = (local ?: FastSettingsEntity(
                                 volume = 50f,
                                 selectedVoice = selectedVoice,
                                 aiSupport = smartReplyEnabled,
                                 autoSpeak = it
                             )).copy(autoSpeak = it)
-                            fastRepo.saveLocalSettings(updated)
+                            fastRepo?.saveLocalSettings(updated)
                             scheduleFastSettingsSync(context)
                         }
                     }
@@ -511,22 +524,27 @@ fun SettingsScreen() {
                     updateSetting("aiSupport", it)
 
                     coroutineScope.launch {
-                        val local = fastRepo.getLocalSettings()
+                        val local = fastRepo?.getLocalSettings()
                         val updated = (local ?: FastSettingsEntity(
                             volume = 50f,
                             selectedVoice = selectedVoice,
                             aiSupport = it
                         )).copy(aiSupport = it)
 
-                        fastRepo.saveLocalSettings(updated)
+                        fastRepo?.saveLocalSettings(updated)
                         scheduleFastSettingsSync(context)
                     }
                 }
             )
 
-            SettingsSection("Custom Words") {
+            SettingsSection("Custom Content") {
                 SettingsButton("Manage Custom Words") {
                     val intent = Intent(context, CustomWordsManagerActivity::class.java)
+                    context.startActivity(intent)
+                }
+
+                SettingsButton("Manage Custom Categories") {
+                    val intent = Intent(context, CustomCategoriesManagerActivity::class.java)
                     context.startActivity(intent)
                 }
             }
@@ -562,32 +580,96 @@ fun SettingsScreen() {
                         "👋 Logged out",
                         android.widget.Toast.LENGTH_SHORT
                     ).show()
-                    context.startActivity(Intent(context, LoginActivity::class.java))
+                    val intent = Intent(context, LoginActivity::class.java)
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    context.startActivity(intent)
                 }
 
+                var showPasswordDialog by remember { mutableStateOf(false) }
+                var password by remember { mutableStateOf("") }
+
                 SettingsButton("Delete Account") {
-                    val user = FirebaseAuth.getInstance().currentUser
-                    user?.delete()?.addOnCompleteListener { task ->
-                        if (task.isSuccessful) {
-                            if (userId != null) {
-                                firestore.collection("USERS").document(userId).delete()
-                            }
-                            android.widget.Toast.makeText(
-                                context,
-                                "🗑️ Account deleted",
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                            context.startActivity(Intent(context, LoginActivity::class.java))
-                        } else {
-                            android.widget.Toast.makeText(
-                                context,
-                                "❌ Failed to delete account",
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
+                    showPasswordDialog = true
                 }
-            }
+
+                if (showPasswordDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showPasswordDialog = false },
+                        title = { Text("Confirm Deletion") },
+                        text = {
+                            Column {
+                                Text("Please enter your password to confirm account deletion:")
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = password,
+                                    onValueChange = { password = it },
+                                    label = { Text("Password") },
+                                    singleLine = true,
+                                    visualTransformation = PasswordVisualTransformation()
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val user = FirebaseAuth.getInstance().currentUser
+                                if (user != null && user.email != null) {
+                                    val credential =
+                                        EmailAuthProvider.getCredential(user.email!!, password)
+
+                                    user.reauthenticate(credential)
+                                        .addOnCompleteListener { reauthTask ->
+                                            if (reauthTask.isSuccessful) {
+                                                user.delete().addOnCompleteListener { task ->
+                                                    if (task.isSuccessful) {
+                                                        val userId =
+                                                            FirebaseAuth.getInstance().currentUser?.uid
+                                                        if (userId != null) {
+                                                            FirebaseFirestore.getInstance()
+                                                                .collection("USERS")
+                                                                .document(userId)
+                                                                .delete()
+                                                        }
+                                                        android.widget.Toast.makeText(
+                                                            context,
+                                                            "🗑️ Account deleted",
+                                                            android.widget.Toast.LENGTH_SHORT
+                                                        ).show()
+                                                        context.startActivity(
+                                                            Intent(
+                                                                context,
+                                                                LoginActivity::class.java
+                                                            )
+                                                        )
+                                                    } else {
+                                                        android.widget.Toast.makeText(
+                                                            context,
+                                                            "❌ Failed to delete account",
+                                                            android.widget.Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    }
+                                                }
+                                            } else {
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    "🔐 Wrong password — try again",
+                                                    android.widget.Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        }
+                                }
+                                showPasswordDialog = false
+                            }) {
+                                Text("Delete", color = Color.Red)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showPasswordDialog = false }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
+                }
+            }}
 
             // === ABOUT ===
             SettingsSection("About") {
@@ -606,4 +688,4 @@ fun SettingsScreen() {
             Spacer(modifier = Modifier.height(30.dp))
         }
     }
-}
+

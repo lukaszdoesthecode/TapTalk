@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.room.Room
 import com.example.taptalk.data.*
+import com.example.taptalk.ui.components.BottomNavBar
 import com.example.taptalk.viewmodel.FastSettingsViewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore

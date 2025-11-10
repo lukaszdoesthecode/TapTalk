@@ -213,6 +213,8 @@ fun DatePickerField(
         calendar.get(Calendar.DAY_OF_MONTH)
     )
 
+    datePickerDialog.datePicker.maxDate = System.currentTimeMillis()
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -231,6 +233,7 @@ fun DatePickerField(
         )
     }
 }
+
 
 /**
  * A composable that displays the user registration form.
@@ -257,12 +260,9 @@ private fun RegisterScreen(
     var password by remember { mutableStateOf("") }
     var repeatPassword by remember { mutableStateOf("") }
     var dob by remember { mutableStateOf("") }
-    var pin by remember { mutableStateOf("") }
 
-    var optPassword by remember { mutableStateOf(true) }
-    var optPin by remember { mutableStateOf(false) }
-    var optRemember by remember { mutableStateOf(false) }
     var acceptTerms by remember { mutableStateOf(false) }
+    var showTerms by remember { mutableStateOf(false) }
 
     val state by viewModel.state.collectAsState()
     val scroll = rememberScrollState()
@@ -302,7 +302,8 @@ private fun RegisterScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .widthIn(max = 900.dp)
-                .padding(horizontal = 12.dp)
+                .padding(horizontal = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -312,95 +313,98 @@ private fun RegisterScreen(
                     PurpleField(name, { name = it }, "Name")
                     Spacer(Modifier.height(16.dp))
                     PurpleField(email, { email = it }, "E-mail")
-                    Spacer(Modifier.height(16.dp))
-                    PurpleField(password, { password = it }, "Password", isPassword = true)
                 }
                 Column(modifier = Modifier.weight(1f)) {
+                    PurpleField(password, { password = it }, "Password", isPassword = true)
+                    Spacer(Modifier.height(16.dp))
                     PurpleField(repeatPassword, { repeatPassword = it }, "Repeat Password", isPassword = true)
-                    Spacer(Modifier.height(16.dp))
-                    DatePickerField(
-                        selectedDate = dob,
-                        onDateSelected = { dob = it }
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    PurpleField(pin, { pin = it }, "PIN (optional)")
                 }
             }
 
             Spacer(Modifier.height(20.dp))
 
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Box(
+                modifier = Modifier.fillMaxWidth(0.6f),
+                contentAlignment = Alignment.Center
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(28.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CheckboxWithLabel(optPassword, { optPassword = it }, "I want to log in\nwith Password")
-                    CheckboxWithLabel(optPin, { optPin = it }, "I want to log in\nwith PIN")
-                    CheckboxWithLabel(optRemember, { optRemember = it }, "I want to be\nremembered")
-                }
-
-                Spacer(Modifier.height(18.dp))
-
-                CheckboxWithLabel(
-                    acceptTerms, { acceptTerms = it },
-                    "By registration I am accepting the rules and terms of the application TapTalk"
+                DatePickerField(
+                    selectedDate = dob,
+                    onDateSelected = { dob = it }
                 )
             }
 
             Spacer(Modifier.height(24.dp))
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth(0.8f)
             ) {
-                Button(
-                    onClick = {
-                        viewModel.register(
-                            name = name.trim(),
-                            email = email.trim(),
-                            password = password,
-                            repeatPassword = repeatPassword,
-                            dob = dob.trim(),
-                            pin = pin.trim().ifBlank { null },
-                            optPassword = optPassword,
-                            optPin = optPin
-                        )
-                    },
-                    enabled = acceptTerms && !state.isLoading,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = BrandGreen,
-                        disabledContainerColor = Color(0xFFCCD7CC)
-                    ),
-                    shape = RoundedCornerShape(100),
-                    modifier = Modifier
-                        .fillMaxWidth(0.5f)
-                        .height(64.dp)
-                        .shadow(6.dp, RoundedCornerShape(100), clip = false)
-                ) {
-                    if (state.isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            strokeWidth = 2.dp,
-                            color = Color.White
-                        )
-                    } else {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_register),
-                            contentDescription = null,
-                            tint = Color.White
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = "Register",
-                            color = Color.White,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp
-                        )
-                    }
+                Checkbox(
+                    checked = acceptTerms,
+                    onCheckedChange = { acceptTerms = it },
+                    colors = CheckboxDefaults.colors(checkedColor = BrandGreen)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "By registering I accept the Terms of Service and Privacy Policy",
+                    fontSize = 12.sp,
+                    color = Color(0xFF1F1F1F),
+                    lineHeight = 16.sp,
+                    modifier = Modifier.clickable { showTerms = true }
+                )
+            }
+
+            if (showTerms) {
+                TermsDialog(onDismiss = { showTerms = false })
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            Button(
+                onClick = {
+                    viewModel.register(
+                        name = name.trim(),
+                        email = email.trim(),
+                        password = password,
+                        repeatPassword = repeatPassword,
+                        dob = dob.trim(),
+                        pin = null,
+                        optPassword = true,
+                        optPin = false
+                    )
+                },
+                enabled = acceptTerms && !state.isLoading,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = BrandGreen,
+                    disabledContainerColor = Color(0xFFCCD7CC)
+                ),
+                shape = RoundedCornerShape(100),
+                modifier = Modifier
+                    .fillMaxWidth(0.5f)
+                    .height(64.dp)
+                    .shadow(6.dp, RoundedCornerShape(100), clip = false)
+            ) {
+                if (state.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White
+                    )
+                } else {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_register),
+                        contentDescription = null,
+                        tint = Color.White
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = "Register",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.sp
+                    )
                 }
             }
 
@@ -426,4 +430,37 @@ private fun RegisterScreen(
 
         Spacer(Modifier.height(28.dp))
     }
+}
+
+@Composable
+fun TermsDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = BrandGreen)
+            }
+        },
+        title = { Text("TapTalk Terms of Service & Privacy Policy") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    text = """
+                    TapTalk complies with EU GDPR regulations.
+                    
+                    • We collect only necessary data to create and manage your account.
+                    • Your data will not be shared with third parties without consent.
+                    • You can request deletion of your account at any time.
+                    • By registering, you agree to responsible app usage according to EU law.
+
+                    For full details, please read our Privacy Policy at:
+                    https://taptalk.example.com/privacy
+                    """.trimIndent(),
+                    fontSize = 13.sp,
+                    color = Color.DarkGray
+                )
+            }
+        },
+        shape = RoundedCornerShape(16.dp)
+    )
 }
