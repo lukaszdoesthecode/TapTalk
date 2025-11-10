@@ -243,36 +243,32 @@ fun saveCardLocallyAndToFirebase(
     onResult: (String) -> Unit
 ) {
     if (userId == null) {
-        onResult("User not logged in.")
+        onResult("Please sign in first!")
         return
     }
 
+    com.google.firebase.FirebaseApp.initializeApp(context)
+
     val categoryFolder = "${selectedCategory}_A1"
+    val localDir = File(context.filesDir, "Custom_Words/$categoryFolder").apply { mkdirs() }
+    val localFile = File(localDir, "$label.jpg")
 
-    // Save image locally
     try {
-        val localDir = File(context.filesDir, "Custom_Words/$categoryFolder")
-        if (!localDir.exists()) localDir.mkdirs()
-
-        val localFile = File(localDir, "${label}.jpg")
         context.contentResolver.openInputStream(imageUri)?.use { input ->
-            FileOutputStream(localFile).use { output ->
-                input.copyTo(output)
-            }
+            FileOutputStream(localFile).use { output -> input.copyTo(output) }
         }
     } catch (e: Exception) {
         onResult("Failed to save locally: ${e.message}")
         return
     }
 
-    // Upload to Firebase Storage
+    val uploadUri = Uri.fromFile(localFile)
     val storageRef = FirebaseStorage.getInstance()
         .reference.child("users/$userId/Custom_Words/$categoryFolder/${label}.jpg")
 
-    storageRef.putFile(imageUri)
+    storageRef.putFile(uploadUri)
         .addOnSuccessListener {
             storageRef.downloadUrl.addOnSuccessListener { downloadUri ->
-
                 val data = mapOf(
                     "label" to label,
                     "category" to selectedCategory,
@@ -281,10 +277,8 @@ fun saveCardLocallyAndToFirebase(
                     "timestamp" to com.google.firebase.Timestamp.now()
                 )
 
-                // Save metadata to Firestore
-                val firestore = FirebaseFirestore.getInstance()
-                firestore.collection("USERS")
-                    .document(userId)
+                FirebaseFirestore.getInstance()
+                    .collection("USERS").document(userId)
                     .collection("Custom_Words")
                     .document(categoryFolder)
                     .collection("words")
@@ -296,7 +290,6 @@ fun saveCardLocallyAndToFirebase(
                     .addOnFailureListener { e ->
                         onResult("Firestore error: ${e.message}")
                     }
-
             }.addOnFailureListener { e ->
                 onResult("Failed to get download URL: ${e.message}")
             }
@@ -305,6 +298,7 @@ fun saveCardLocallyAndToFirebase(
             onResult("Upload failed: ${e.message}")
         }
 }
+
 
 fun borderColorForCategory(f: String): Color {
     return when {

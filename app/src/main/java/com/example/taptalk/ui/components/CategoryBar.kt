@@ -99,7 +99,7 @@ fun CategoryBar(
 
         val addCategoryTile = com.example.taptalk.aac.data.Category(
             label = "+ New",
-            path = "file:///android_asset/icons/add_category.png"
+            path = "file:///android_asset/ACC_board/categories/new.png"
         )
 
         categories = (builtIn + userAsCategories)

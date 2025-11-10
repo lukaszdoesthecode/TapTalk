@@ -341,12 +341,14 @@ fun SettingsScreen() {
 
     fun updateSetting(key: String, value: Any) {
         if (userId == null) return
-        firestore.collection("USERS")
+        val ref = firestore.collection("USERS")
             .document(userId)
             .collection("Fast_Settings")
             .document("current")
-            .update(key, value)
+
+        ref.set(mapOf(key to value), com.google.firebase.firestore.SetOptions.merge())
     }
+
 
     LaunchedEffect(userId) {
         if (userId != null) {
@@ -409,7 +411,7 @@ fun SettingsScreen() {
 
                 SettingsDropdown(
                     title = "Voice",
-                    options = listOf("Kate","Josh","Sabrina","Sami"),
+                    options = listOf("Kate", "Josh", "Sabrina", "Sami"),
                     selected = selectedVoice,
                     onSelect = { v ->
                         selectedVoice = v
@@ -458,7 +460,6 @@ fun SettingsScreen() {
                 }
 
 
-
             }
 
             SettingsSection("Interface") {
@@ -474,26 +475,41 @@ fun SettingsScreen() {
                     title = "Grid Size",
                     options = listOf("Small", "Medium", "Large"),
                     selected = gridSize,
-                    onSelect = {
-                        gridSize = it
-                        updateSetting("gridSize", it)
+                    onSelect = { newSize ->
+                        gridSize = newSize
+                        updateSetting("gridSize", newSize)
+
+                        coroutineScope.launch {
+                            val local = fastRepo?.getLocalSettings()
+                            val updated = (local ?: FastSettingsEntity(
+                                volume = 50f,
+                                selectedVoice = selectedVoice,
+                                aiSupport = smartReplyEnabled,
+                                autoSpeak = autoSpeak,
+                                gridSize = newSize
+                            )).copy(gridSize = newSize)
+
+                            fastRepo?.saveLocalSettings(updated)
+                            scheduleFastSettingsSync(context)
+                        }
                     }
                 )
+
                 var visibleLevels by remember { mutableStateOf(listOf("A1", "A2", "B1")) }
 
                 LaunchedEffect(userId) {
                     if (userId != null) {
                         firestore.collection("USERS").document(userId)
                             .collection("Fast_Settings").document("current")
-                            .get()
-                            .addOnSuccessListener { doc ->
-                                if (doc.exists()) {
-                                    val list = doc.get("visibleLevels") as? List<*>
+                            .addSnapshotListener { snapshot, _ ->
+                                if (snapshot != null && snapshot.exists()) {
+                                    val list = snapshot.get("visibleLevels") as? List<*>
                                     visibleLevels = list?.filterIsInstance<String>() ?: listOf("A1", "A2", "B1")
                                 }
                             }
                     }
                 }
+
 
                 SettingsSection("Language Levels") {
                     val allLevels = listOf("A1", "A2", "B1")
@@ -669,7 +685,7 @@ fun SettingsScreen() {
                         }
                     )
                 }
-            }}
+            }
 
             // === ABOUT ===
             SettingsSection("About") {
@@ -688,4 +704,4 @@ fun SettingsScreen() {
             Spacer(modifier = Modifier.height(30.dp))
         }
     }
-
+}

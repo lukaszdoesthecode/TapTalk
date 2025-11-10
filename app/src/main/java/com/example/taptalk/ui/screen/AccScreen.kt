@@ -225,17 +225,18 @@ fun AccScreen(
     LaunchedEffect(Unit) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid
         if (uid != null) {
-            val snap = FirebaseFirestore.getInstance()
-                .collection("USERS").document(uid)
-                .collection("Fast_Settings").document("current")
-                .get()
-                .await()
-
-            autoSpeak = snap.getBoolean("autoSpeak") ?: true
-            smartReplyEnabled = snap.getBoolean("aiSupport") ?: true
-
-            val savedGrid = snap.getString("gridSize") ?: "Medium"
-            gridSize = savedGrid
+            FirebaseFirestore.getInstance()
+                .collection("USERS")
+                .document(uid)
+                .collection("Fast_Settings")
+                .document("current")
+                .addSnapshotListener { snapshot, _ ->
+                    if (snapshot != null && snapshot.exists()) {
+                        autoSpeak = snapshot.getBoolean("autoSpeak") ?: true
+                        smartReplyEnabled = snapshot.getBoolean("aiSupport") ?: true
+                        gridSize = snapshot.getString("gridSize") ?: "Medium"
+                    }
+                }
         }
     }
 
@@ -311,7 +312,7 @@ fun AccScreen(
                 }
 
                 selectedCategory.equals("custom", ignoreCase = true) -> {
-                    val customs = allCards.filter { it.folder.startsWith("custom", ignoreCase = true) }
+                    val customs = loadCustomCards(context)
                     keepSlotsWithLevels(customs)
                 }
 

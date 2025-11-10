@@ -446,15 +446,56 @@ fun TermsDialog(onDismiss: () -> Unit) {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
                     text = """
-                    TapTalk complies with EU GDPR regulations.
-                    
-                    • We collect only necessary data to create and manage your account.
-                    • Your data will not be shared with third parties without consent.
-                    • You can request deletion of your account at any time.
-                    • By registering, you agree to responsible app usage according to EU law.
+                    TERMS OF USAGE
 
-                    For full details, please read our Privacy Policy at:
-                    https://taptalk.example.com/privacy
+                    1. General Information
+                    This application has been developed as an academic project by Łukasz Stecyk, a student of Wrocław University of Science and Technology (Index number: 275326, Email: 275216@student.pwr.edu.pl).
+                    The application is intended for educational and non-commercial use. All data collection and processing comply with the General Data Protection Regulation (GDPR) and the Guidelines on the Protection of Personal Data Processed by Mobile Applications issued by the European Union institutions.
+
+                    2. Data Collection and Processing
+                    - The application collects only data strictly necessary for its functionality.
+                    - Personal data are processed solely for the purpose of providing and improving the service.
+                    - No real user data are used during development or testing. All data-processing pipelines are verified prior to deployment to ensure GDPR compliance.
+
+                    3. User Consent
+                    - Before using the application, the user must accept these Terms of Usage.
+                    - Consent must be freely given, specific, informed, and unambiguous.
+                    - Users have the right to withdraw consent at any time and to request deletion of their personal data.
+                    - Withdrawal of consent does not affect the legality of data processing carried out before such withdrawal.
+
+                    4. Transparency and Privacy Information
+                    - Users are provided with clear and accessible privacy information explaining how their data are collected, stored, and used.
+                    - The privacy notice is presented in a layered format, optimized for small screens and easy comprehension.
+
+                    5. Data Transfers
+                    - All personal data are stored and processed within the European Union/European Economic Area (EU/EEA).
+                    - If any data transfer outside the EU/EEA is necessary, it will be executed in accordance with GDPR data transfer regulations.
+
+                    6. User Rights
+                    In accordance with the GDPR, users have the right to:
+                    - Access their personal data;
+                    - Request correction of inaccurate or incomplete data;
+                    - Request deletion of their data (“right to be forgotten”);
+                    - Restrict processing;
+                    - Receive their data in a portable format;
+                    - Object to the processing of their data.
+                    All requests can be sent to: 275216@student.pwr.edu.pl.
+
+                    7. Intellectual Property and Licenses
+                    The pictographic symbols used in this application are the property of the Government of Aragón and were created by Sergio Palao for ARASAAC (http://www.arasaac.org).
+                    They are distributed under the Creative Commons License BY-NC-SA (Attribution–NonCommercial–ShareAlike).
+
+                    Credits:
+                    Pictograms author: Sergio Palao
+                    Origin: ARASAAC (http://www.arasaac.org)
+                    License: CC BY-NC-SA
+                    Owner: Government of Aragón (Spain)
+
+                    8. Contact
+                    For any questions related to data protection or these Terms of Usage, please contact:
+                    Łukasz Stecyk
+                    Email: 275216@student.pwr.edu.pl
+                    Wrocław University of Science and Technology
                     """.trimIndent(),
                     fontSize = 13.sp,
                     color = Color.DarkGray
