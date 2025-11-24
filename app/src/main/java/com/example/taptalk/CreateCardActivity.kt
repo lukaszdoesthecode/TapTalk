@@ -27,6 +27,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import com.example.taptalk.ui.components.BottomNavBar
+import com.example.taptalk.ui.theme.Adjective
+import com.example.taptalk.ui.theme.Conjunction
+import com.example.taptalk.ui.theme.Determiner
+import com.example.taptalk.ui.theme.Emergency
+import com.example.taptalk.ui.theme.Negation
+import com.example.taptalk.ui.theme.Noun
+import com.example.taptalk.ui.theme.Pronoun
+import com.example.taptalk.ui.theme.Proposition
+import com.example.taptalk.ui.theme.Question
+import com.example.taptalk.ui.theme.Social
+import com.example.taptalk.ui.theme.Verb
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
@@ -82,7 +93,7 @@ fun CreateCardScreen() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color(0xFFF7F4FF))
+                .background(Color.White)
                 .padding(horizontal = 40.dp, vertical = 30.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly
@@ -302,16 +313,17 @@ fun saveCardLocallyAndToFirebase(
 
 fun borderColorForCategory(f: String): Color {
     return when {
-        "adjective" in f -> Color(0xFFADD8E6)
-        "conjunction" in f -> Color(0xFFD3D3D3)
-        "emergency" in f -> Color(0xFFFF6B6B)
-        "noun" in f -> Color(0xFFFFB347)
-        "preposition" in f -> Color(0xFFFFC0CB)
-        "pronoun" in f -> Color(0xFFFFF176)
-        "question" in f -> Color(0xFFB39DDB)
-        "social" in f -> Color(0xFFFFC0CB)
-        "verbs" in f -> Color(0xFF81C784)
-        "determiner" in f -> Color(0xFF90A4AE)
-        else -> Color.Black
+        "adjective" in f   -> Adjective
+        "conjunction" in f -> Conjunction
+        "emergency" in f    -> Emergency
+        "negation" in f    -> Negation
+        "noun" in f        -> Noun
+        "preposition" in f -> Proposition
+        "pronoun" in f     -> Pronoun
+        "question" in f    -> Question
+        "social" in f      -> Social
+        "verbs" in f        -> Verb
+        "determiner" in f  -> Determiner
+        else               -> Color.Black
     }
 }

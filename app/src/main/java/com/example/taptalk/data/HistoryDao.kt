@@ -16,4 +16,7 @@ interface HistoryDao {
 
     @Query("SELECT * FROM history ORDER BY timestamp DESC LIMIT 15")
     fun getRecent(): List<HistoryEntity>
+
+    @Query("DELETE FROM history")
+    suspend fun deleteAll()
 }

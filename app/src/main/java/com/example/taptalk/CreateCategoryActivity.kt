@@ -11,8 +11,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
@@ -36,6 +34,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.ui.text.style.TextAlign
+import com.example.taptalk.ui.theme.*
 
 class CreateCategoryActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -95,15 +94,16 @@ fun CreateCategoryScreen() {
             )
 
             val colors = listOf(
-                Color(0xFFADD8E6),
-                Color(0xFFD3D3D3),
-                Color(0xFFFF6B6B),
-                Color(0xFFFFB347),
-                Color(0xFFFFC0CB),
-                Color(0xFFFFF176),
-                Color(0xFFB39DDB),
-                Color(0xFF81C784),
-                Color(0xFF90A4AE)
+                Emergency,
+                Social,
+                Question,
+                Pronoun,
+                Noun,
+                Verb,
+                Adjective,
+                Adverb,
+                Conjunction,
+                Determiner
             )
 
             Row(

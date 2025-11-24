@@ -22,4 +22,7 @@ interface UserCategoryDao {
 
     @Query("DELETE FROM user_categories WHERE name = :name")
     suspend fun deleteByName(name: String)
+
+    @Query("DELETE FROM user_categories")
+    suspend fun deleteAll()
 }

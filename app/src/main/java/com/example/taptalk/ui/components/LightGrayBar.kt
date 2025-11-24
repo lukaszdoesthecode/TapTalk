@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,8 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,6 +33,7 @@ import coil.ImageLoader
 import coil.compose.rememberAsyncImagePainter
 import com.example.taptalk.aac.data.AccCard
 import com.example.taptalk.borderColorFor
+import com.example.taptalk.ui.theme.Bar
 
 /**
  * A Composable that displays a horizontal bar with a green background,
@@ -67,15 +69,16 @@ fun GreenBar(
 
     Row(
         modifier = modifier
-            .background(Color(0xFFDFF0D8))
+            .background(Bar)
             .fillMaxWidth()
             .padding(horizontal = spacing, vertical = spacing),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Previous Button
         CategorySquareButton(
-            icon = Icons.Default.ArrowBack,
+            icon = Icons.AutoMirrored.Filled.ArrowBack,
             contentDesc = "Previous page",
-            enabled = canGoPrev,
+            enabled = cards.isNotEmpty() && canGoPrev,
             onClick = { if (canGoPrev) onPrev() }
         )
 
@@ -85,43 +88,53 @@ fun GreenBar(
                 .fillMaxHeight(),
             contentAlignment = Alignment.Center
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(spacing),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                cards.forEach { card ->
-                    Box(
-                        modifier = Modifier
-                            .height(70.dp)
-                            .width(80.dp)
-                            .border(2.dp, borderColorFor(card.folder), RoundedCornerShape(4.dp))
-                            .background(Color(0xFFD9D9D9), RoundedCornerShape(4.dp))
-                            .clickable { onSuggestionClick(card) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxSize().padding(2.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+            if (cards.isNotEmpty()) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(spacing),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    cards.forEach { card ->
+                        Box(
+                            modifier = Modifier
+                                .height(80.dp)
+                                .width(80.dp)
+                                .border(2.dp, borderColorFor(card.folder), RoundedCornerShape(4.dp))
+                                .background(Color(0xFFD9D9D9), RoundedCornerShape(4.dp))
+                                .clickable { onSuggestionClick(card) },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Image(
-                                painter = rememberAsyncImagePainter(
-                                    model = Uri.parse(card.path),
-                                    imageLoader = imageLoader
-                                ),
-                                contentDescription = card.label,
-                                modifier = Modifier.weight(1f).fillMaxWidth()
-                            )
-                            Text(card.label, fontSize = 12.sp, textAlign = TextAlign.Center)
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(2.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Image(
+                                    painter = rememberAsyncImagePainter(
+                                        model = Uri.parse(card.path),
+                                        imageLoader = imageLoader
+                                    ),
+                                    contentDescription = card.label,
+                                    modifier = Modifier.weight(1f).fillMaxWidth()
+                                )
+                                Text(
+                                    card.label,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
                 }
+            } else {
+                Spacer(Modifier.height(80.dp))
             }
         }
 
+        // Next Button
         CategorySquareButton(
-            icon = Icons.Default.ArrowForward,
+            icon = Icons.AutoMirrored.Filled.ArrowForward,
             contentDesc = "Next page",
-            enabled = canGoNext,
+            enabled = cards.isNotEmpty() && canGoNext,
             onClick = { if (canGoNext) onNext() }
         )
     }

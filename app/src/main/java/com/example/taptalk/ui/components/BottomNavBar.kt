@@ -16,7 +16,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.taptalk.AccActivity
@@ -24,6 +23,7 @@ import com.example.taptalk.CreateCardActivity
 import com.example.taptalk.FastSettingsActivity
 import com.example.taptalk.KeyboardActivity
 import com.example.taptalk.SettingsActivity
+import com.example.taptalk.ui.theme.Bar
 
 /**
  * A Composable function that displays a persistent bottom navigation bar.
@@ -44,7 +44,7 @@ fun BottomNavBar() {
         modifier = Modifier
             .fillMaxWidth()
             .height(50.dp)
-            .background(Color(0xFFDFF0D8))
+            .background(Bar)
             .padding(4.dp),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {

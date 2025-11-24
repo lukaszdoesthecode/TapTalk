@@ -17,13 +17,15 @@ import androidx.room.PrimaryKey
  * @property isSynced Flag to check if the settings are synchronized with a remote server. Defaults to true.
  * @property gridSize The selected grid size for the main interface (e.g., "Small", "Medium", "Large"). Defaults to "Medium".
  */
+
 @Entity(tableName = "fast_settings")
 data class FastSettingsEntity(
     @PrimaryKey val id: Int = 0,
     val volume: Float = 50f,
     val selectedVoice: String = "Kate",
     val aiSupport: Boolean = true,
-    val autoSpeak: Boolean = true,
     val isSynced: Boolean = true,
-    val gridSize: String = "Medium"
+    val gridSize: String = "Medium",
+    val voiceSpeed: Float = 1.0f,
+    val voicePitch: Float = 1.0f
 )

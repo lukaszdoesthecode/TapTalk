@@ -125,12 +125,21 @@ private fun LoginScreen(
 
     LaunchedEffect(state.success) {
         if (state.success) {
+            val catRepo = com.example.taptalk.aac.data.CategoryRepository(context)
+            val wordsRepo = com.example.taptalk.aac.data.CustomWordsRepository(context)
+
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                catRepo.restoreFromFirebase()
+                wordsRepo.restoreFromFirebase()
+            }
+
             context.startActivity(Intent(context, AccActivity::class.java))
             if (context is android.app.Activity) {
                 context.finish()
             }
         }
     }
+
 
     Column(
         modifier = Modifier
@@ -185,8 +194,12 @@ private fun LoginScreen(
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = PurplePrimary,
                     unfocusedContainerColor = PurplePrimary,
-                    cursorColor = Color.White
-                ),
+                    cursorColor = Color.White,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
+                )
+,
                 modifier = Modifier.fillMaxWidth().height(64.dp)
             )
 
@@ -222,8 +235,12 @@ private fun LoginScreen(
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = PurplePrimary,
                     unfocusedContainerColor = PurplePrimary,
-                    cursorColor = Color.White
-                ),
+                    cursorColor = Color.White,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
+                )
+,
                 modifier = Modifier.fillMaxWidth().height(64.dp)
             )
 

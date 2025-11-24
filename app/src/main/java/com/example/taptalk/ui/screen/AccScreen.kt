@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -126,6 +128,11 @@ fun AccScreen(
     spacing: Dp = 6.dp,
     speak: (String) -> Unit
 ) {
+
+    var showCategoryLetterPopup by remember { mutableStateOf(false) }
+    var selectedCategoryLetter by remember { mutableStateOf<Char?>(null) }
+    var longPressedCategory by remember { mutableStateOf<String?>(null) }
+
     var selectedCategory by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     var autoSpeak by remember { mutableStateOf(true) }
@@ -136,6 +143,8 @@ fun AccScreen(
 
     var showPopup by remember { mutableStateOf(false) }
     var selectedCard by remember { mutableStateOf<AccCard?>(null) }
+    var popupType by remember { mutableStateOf("verb") }
+
     val chosen = remember { mutableStateListOf<AccCard>() }
     var suggestions by remember { mutableStateOf<List<AccCard>>(emptyList()) }
 
@@ -149,77 +158,37 @@ fun AccScreen(
     LaunchedEffect(chosen.toList(), smartReplyEnabled) {
         val sentence = chosen.joinToString(" ") { it.label }
 
-        if (sentence.isNotBlank()) {
-            if (smartReplyEnabled) {
-                val baseContext = listOf(
-                    "I am hungry",
-                    "Do you want to eat?",
-                    "Yes I want food",
-                    "Okay let's go",
-                    "I am tired",
-                    "Let's rest",
-                    "I am happy",
-                    "That is funny",
-                    "Good morning",
-                    "Please help"
-                )
+        if (!smartReplyEnabled) {
+            suggestions = emptyList()
+            return@LaunchedEffect
+        }
 
-                val conversation = mutableListOf<TextMessage>()
-                baseContext.forEachIndexed { i, text ->
-                    if (i % 2 == 0) {
-                        conversation.add(
-                            TextMessage.createForLocalUser(
-                                text,
-                                System.currentTimeMillis() - (baseContext.size - i) * 1000
-                            )
-                        )
-                    } else {
-                        conversation.add(
-                            TextMessage.createForRemoteUser(
-                                text,
-                                System.currentTimeMillis() - (baseContext.size - i) * 1000,
-                                "user_1"
-                            )
-                        )
-                    }
+        if (sentence.isBlank()) {
+            suggestions = emptyList()
+            return@LaunchedEffect
+        }
+
+        smartReply.suggestReplies(
+            listOf(TextMessage.createForLocalUser(sentence, System.currentTimeMillis()))
+        ).addOnSuccessListener { result ->
+            if (result.status == SmartReplySuggestionResult.STATUS_SUCCESS) {
+                val replies = result.suggestions.map { it.text }
+                val smartReplies = replies.filter {
+                    it.lowercase() !in listOf("nice", "ok", "okay", "thanks")
                 }
 
-                conversation.add(
-                    TextMessage.createForLocalUser(
-                        sentence,
-                        System.currentTimeMillis()
-                    )
-                )
+                val customSuggestions = generateFallbackSuggestions(sentence, accDict)
 
-                smartReply.suggestReplies(conversation)
-                    .addOnSuccessListener { result ->
-                        if (result.status == SmartReplySuggestionResult.STATUS_SUCCESS) {
-                            val replies = result.suggestions.map { it.text }
-                            Log.d("SMART_REPLY", "Replies: $replies")
-
-                            val smartReplies = replies.filter {
-                                it.lowercase() !in listOf("nice", "ok", "okay", "thanks")
-                            }
-
-                            val customSuggestions = generateFallbackSuggestions(sentence, accDict)
-
-                            suggestions =
-                                (smartReplies.mapNotNull { accDict[it.lowercase()] } + customSuggestions)
-                                    .distinct()
-                        } else {
-                            suggestions = generateFallbackSuggestions(sentence, accDict)
-                        }
-                    }
-                    .addOnFailureListener {
-                        suggestions = generateFallbackSuggestions(sentence, accDict)
-                    }
+                suggestions = (smartReplies.mapNotNull { accDict[it.lowercase()] } + customSuggestions)
+                    .distinct()
             } else {
-                suggestions = generateFallbackSuggestions(sentence, accDict)
+                suggestions = emptyList()
             }
-        } else {
+        }.addOnFailureListener {
             suggestions = emptyList()
         }
     }
+
 
         var gridSize by remember { mutableStateOf("Medium") }
     LaunchedEffect(Unit) {
@@ -302,7 +271,7 @@ fun AccScreen(
                 list.map { card -> if (levelPass(card.fileName)) card else null }
 
             when {
-                selectedCategory.equals("favourites", ignoreCase = true) -> favs.map { it as AccCard? }
+                selectedCategory.equals("favourites", ignoreCase = true) -> favs.map { it }
 
                 userCategories.any { it.name.equals(selectedCategory, ignoreCase = true) } -> {
                     val cat = userCategories.first { it.name.equals(selectedCategory, ignoreCase = true) }
@@ -317,9 +286,20 @@ fun AccScreen(
                 }
 
                 !selectedCategory.isNullOrBlank() -> {
-                    val inCat = allCards.filter { it.folder.startsWith(selectedCategory!!, ignoreCase = true) }
+
+                    var inCat = allCards.filter {
+                        it.folder.startsWith(selectedCategory!!, ignoreCase = true)
+                    }
+
+                    selectedCategoryLetter?.let { letter ->
+                        inCat = inCat.filter { card ->
+                            card.label.startsWith(letter, ignoreCase = true)
+                        }
+                    }
+
                     keepSlotsWithLevels(inCat)
                 }
+
 
                 else -> {
                     val order = when (gridSize) {
@@ -341,7 +321,7 @@ fun AccScreen(
             }
         }
     }
-    var page by remember { mutableStateOf(0) }
+    var page by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(selectedCategory, gridSize, visibleLevels) {
         page = 0
@@ -366,7 +346,7 @@ fun AccScreen(
                 spacing = spacing,
                 modifier = Modifier.fillMaxWidth().height(80.dp),
                 imageLoader = imageLoader,
-                painterCache = mutableMapOf(), // not used here
+                painterCache = mutableMapOf(),
                 onReorder = { from, to -> chosen.add(to, chosen.removeAt(from)) },
                 onRemove = { idx -> chosen.removeAt(idx) },
                 onClearAll = { chosen.clear() },
@@ -399,19 +379,24 @@ fun AccScreen(
                 favs = favs,
                 onCardClick = { card -> if (chosen.size < 14) chosen.add(card) },
                 onCardLongPress = { card ->
+
                     when {
-                        card.folder.contains("noun", ignoreCase = true) -> {
-                            val plural = suggestPlural(card.label, irregularPluralJson)
-                            if (chosen.size < 14) chosen.add(card.copy(label = plural))
+
+                        card.folder.equals("nouns", ignoreCase = true) -> {
+                            selectedCard = card
+                            popupType = "noun"
+                            showPopup = true
                         }
 
-                        card.folder == "verbs" -> {
+                        card.folder.equals("verbs", ignoreCase = true) -> {
                             selectedCard = card
+                            popupType = "verb"
                             showPopup = true
                         }
 
                         card.label.equals("will", ignoreCase = true) -> {
                             selectedCard = card
+                            popupType = "verb"
                             showPopup = true
                         }
 
@@ -423,8 +408,29 @@ fun AccScreen(
 
             CategoryBar(
                 imageLoader = imageLoader,
-                onCategorySelected = { selectedCategory = it },
-                modifier = Modifier.fillMaxWidth().height(90.dp)
+                onCategorySelected = {
+                    selectedCategoryLetter = null
+                    selectedCategory = it
+                },
+                onCategoryLongPress = { cat ->
+
+                    // BLOCK long-press for these
+                    val blocked = listOf(
+                        "home", "favourites", "custom", "+ new"
+                    )
+
+                    val isUserCategory = userCategories.any { it.name.equals(cat, ignoreCase = true) }
+
+                    if (cat.lowercase() in blocked || isUserCategory) {
+                        return@CategoryBar
+                    }
+
+                    longPressedCategory = cat
+                    showCategoryLetterPopup = true
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(90.dp)
             )
         }
     }
@@ -591,5 +597,209 @@ fun AccScreen(
                     }
                 }
             }        }
+    }
+
+    if (showPopup && selectedCard != null && popupType == "noun") {
+        Dialog(onDismissRequest = { showPopup = false }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .border(4.dp, Color.Black, RoundedCornerShape(12.dp)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+
+                    val singular = selectedCard!!.label
+                    val plural = suggestPlural(singular, irregularPluralJson)
+
+                    Text(
+                        text = "Choose form:",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+
+                        // Singular
+                        Box(
+                            modifier = Modifier
+                                .size(120.dp)
+                                .border(2.dp, Color(0xFF81C784), RoundedCornerShape(10.dp))
+                                .background(Color(0xFFE8F5E9), RoundedCornerShape(10.dp))
+                                .clickable {
+                                    chosen.add(selectedCard!!)
+                                    showPopup = false
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Image(
+                                    painter = rememberAsyncImagePainter(Uri.parse(selectedCard!!.path), imageLoader),
+                                    contentDescription = "Singular",
+                                    modifier = Modifier.size(50.dp)
+                                )
+                                Text(singular, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        // Plural
+                        Box(
+                            modifier = Modifier
+                                .size(120.dp)
+                                .border(2.dp, Color(0xFFFFA726), RoundedCornerShape(10.dp))
+                                .background(Color(0xFFFFF3E0), RoundedCornerShape(10.dp))
+                                .clickable {
+                                    chosen.add(selectedCard!!.copy(label = plural))
+                                    showPopup = false
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Image(
+                                    painter = rememberAsyncImagePainter(Uri.parse(selectedCard!!.path), imageLoader),
+                                    contentDescription = "Plural",
+                                    modifier = Modifier.size(50.dp)
+                                )
+                                Text(plural, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .border(2.dp, Color.Red, RoundedCornerShape(8.dp))
+                            .background(Color.LightGray, RoundedCornerShape(8.dp))
+                            .clickable { showPopup = false },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxSize().padding(4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            Image(
+                                painter = rememberAsyncImagePainter(
+                                    Uri.parse("file:///android_asset/tenses/negative_present.png"),
+                                    imageLoader
+                                ),
+                                contentDescription = "Cancel",
+                                modifier = Modifier.weight(1f).fillMaxWidth()
+                            )
+                            Text("Cancel", fontSize = 12.sp, color = Color.Red, textAlign = TextAlign.Center)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showCategoryLetterPopup && longPressedCategory != null) {
+        Dialog(onDismissRequest = { showCategoryLetterPopup = false }) {
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .border(4.dp, Color.Black, RoundedCornerShape(12.dp)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+
+                    Text(
+                        text = "Filter by letter",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+
+                    // All cards inside the long-pressed category
+                    val cardsInCategory = allCards.filter {
+                        it.folder.startsWith(longPressedCategory!!, ignoreCase = true)
+                    }
+
+                    // Letters that actually exist in that category
+                    val availableLetters = cardsInCategory
+                        .mapNotNull { it.label.firstOrNull()?.uppercaseChar() }
+                        .toSet()
+
+                    val letters = ('A'..'Z').toList()
+
+                    for (row in letters.chunked(6)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Spacer(Modifier.weight(1f))
+
+                            row.forEach { letter ->
+                                val enabled = availableLetters.contains(letter)
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .border(
+                                            width = 3.dp,
+                                            color = if (enabled) Color(0xFF81C784) else Color.LightGray,
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                        .background(
+                                            color = if (enabled) Color(0xFFE8F5E9) else Color(0xFFE0E0E0),
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                        .clickable(enabled = enabled) {
+                                            selectedCategory = longPressedCategory
+                                            selectedCategoryLetter = letter
+                                            showCategoryLetterPopup = false
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = letter.toString(),
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (enabled) Color.Black else Color.Gray
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.weight(1f))
+                        }
+                    }
+
+                    Text(
+                        text = "Show all",
+                        color = Color.Blue,
+                        modifier = Modifier.clickable {
+                            selectedCategoryLetter = null
+                            selectedCategory = longPressedCategory
+                            showCategoryLetterPopup = false
+                        }
+                    )
+
+                    Text(
+                        text = "Cancel",
+                        color = Color.Red,
+                        modifier = Modifier.clickable {
+                            showCategoryLetterPopup = false
+                        }
+                    )
+                }
+            }
+        }
     }
 }

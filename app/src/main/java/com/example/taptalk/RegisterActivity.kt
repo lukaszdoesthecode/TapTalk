@@ -147,34 +147,6 @@ private fun PurpleField(
     )
 }
 
-/**
- * A Composable that displays a checkbox followed by a text label.
- *
- * This is a small helper component that arranges a [Checkbox] and a [Text]
- * horizontally in a [Row]. It's used for creating labeled checkbox options
- * in the registration form.
- *
- * @param checked The current checked state of the checkbox.
- * @param onCheckedChange A callback that is invoked when the user clicks the checkbox,
- *                        providing the new checked state.
- * @param label The text to display next to the checkbox.
- */
-@Composable
-private fun CheckboxWithLabel(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    label: String
-) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = CheckboxDefaults.colors(checkedColor = BrandGreen)
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(text = label, fontSize = 12.sp, color = Color(0xFF1F1F1F), lineHeight = 16.sp)
-    }
-}
 
 /**
  * A Composable that displays a field for date selection.
@@ -225,7 +197,7 @@ fun DatePickerField(
         contentAlignment = Alignment.CenterStart
     ) {
         Text(
-            text = if (selectedDate.isEmpty()) label else selectedDate,
+            text = selectedDate.ifEmpty { label },
             color = Color.White,
             fontSize = if (selectedDate.isEmpty()) 20.sp else 18.sp,
             fontWeight = if (selectedDate.isEmpty()) FontWeight.ExtraBold else FontWeight.Medium,

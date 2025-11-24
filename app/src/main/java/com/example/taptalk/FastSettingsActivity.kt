@@ -1,13 +1,21 @@
 package com.example.taptalk
 
+import android.content.Context
+import android.media.AudioManager
 import android.os.Bundle
+import android.speech.tts.TextToSpeech
+import android.speech.tts.Voice
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.*
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -17,23 +25,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.room.Room
-import com.example.taptalk.data.*
+import com.example.taptalk.data.AppDatabase
+import com.example.taptalk.data.FastSettingsRepository
 import com.example.taptalk.ui.components.BottomNavBar
+import com.example.taptalk.ui.theme.Bar
+import com.example.taptalk.ui.theme.SoftGreen
+import com.example.taptalk.ui.theme.SoftGreenBorder
 import com.example.taptalk.viewmodel.FastSettingsViewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import com.google.firebase.firestore.SetOptions
+import java.util.Locale
 
-/**
- * An activity that provides a user interface for quickly adjusting application settings.
- * This screen allows users to configure options such as sound volume, voice selection,
- * and AI support features.
- *
- * The activity sets up the main content view using Jetpack Compose, displaying the
- * [FastSettingsScreen] composable, which contains the actual UI elements for the settings.
- */
+
 class FastSettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,16 +51,10 @@ class FastSettingsActivity : ComponentActivity() {
     }
 }
 
+// FIRESTORE HELPER
+
 /**
  * Safely updates a single setting field in a user's "Fast_Settings" document in Firestore.
- *
- * This function attempts to update a specific key-value pair in the user's settings document.
- * If the document does not exist, it catches the exception and creates the document
- * with the provided key-value pair instead, ensuring the setting is saved either way.
- *
- * @param userId The unique identifier of the user whose setting is being updated.
- * @param key The name of the setting field to update (e.g., "volume", "aiSupport").
- * @param value The new value for the setting.
  */
 suspend fun safeUpdateSetting(userId: String, key: String, value: Any) {
     val firestore = FirebaseFirestore.getInstance()
@@ -70,49 +70,41 @@ suspend fun safeUpdateSetting(userId: String, key: String, value: Any) {
     }
 }
 
-/**
- * A composable that creates a styled container box for a settings section.
- *
- * This box includes a title, an icon, and a designated content area. The box has a
- * specific background color, rounded corners, and a border. It's designed to
- * structure different settings categories in a visually consistent way.
- *
- * @param title The text to be displayed as the title of the section.
- * @param iconId The resource ID of the drawable to be used as the section's icon.
- * @param content A composable lambda that defines the content to be displayed
- *                within the main body of the section box. This lambda has a `ColumnScope`
- *                receiver, allowing content to be placed vertically.
- */
+// UI BUILDING BLOCKS
+
 @Composable
 fun SectionBox(title: String, iconId: Int, content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = Modifier
-            .fillMaxWidth(0.9f)
-            .height(220.dp)
-            .background(Color(0xFF6A1B9A), RoundedCornerShape(16.dp))
-            .border(3.dp, Color.Black, RoundedCornerShape(16.dp))
-            .padding(20.dp),
-        verticalArrangement = Arrangement.SpaceBetween
+            .fillMaxWidth()
+            .heightIn(min = 210.dp)
+            .background(SoftGreen, RoundedCornerShape(16.dp))
+            .border(3.dp, SoftGreenBorder, RoundedCornerShape(16.dp))
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(bottom = 8.dp)
+        ) {
             Image(
                 painter = painterResource(id = iconId),
                 contentDescription = "$title icon",
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(32.dp)
             )
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = title,
                 fontWeight = FontWeight.Bold,
-                fontSize = 24.sp,
-                color = Color.White
+                fontSize = 20.sp,
+                color = Color.Black
             )
         }
 
         Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             content()
         }
@@ -120,97 +112,50 @@ fun SectionBox(title: String, iconId: Int, content: @Composable ColumnScope.() -
 }
 
 /**
- * A composable that displays a single voice option as a clickable card.
- *
- * This card shows an image and the name of the voice. It visually indicates
- * whether it is the currently selected option by displaying a border. Tapping on the
- * card triggers the provided `onClick` lambda.
- *
- * @param name The name of the voice to display.
- * @param imageRes The drawable resource ID for the voice's representative image.
- * @param selected A boolean indicating if this voice option is currently selected.
- * @param onClick A lambda function to be executed when the voice option is clicked.
+ * Selectable card for AI Yes/No.
  */
 @Composable
-fun VoiceOption(name: String, imageRes: Int, selected: Boolean, onClick: () -> Unit) {
+fun AiOption(
+    name: String,
+    displayText: String,
+    imageRes: Int,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .size(120.dp)
+            .size(100.dp)
             .border(
-                width = 4.dp,
-                color = if (selected) Color.Black else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
+                width = 3.dp,
+                color = if (selected) Color.Black else Bar,
+                shape = RoundedCornerShape(10.dp)
             )
             .clickable { onClick() }
-            .background(Color.White, RoundedCornerShape(12.dp))
-            .padding(8.dp)
+            .background(Color.White, RoundedCornerShape(10.dp))
+            .padding(6.dp)
     ) {
         Image(
             painter = painterResource(id = imageRes),
             contentDescription = name,
-            modifier = Modifier.size(70.dp)
+            modifier = Modifier.size(55.dp)
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(name, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            displayText,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
-/**
- * A composable that displays a selectable card for an AI-related option.
- *
- * This card presents a binary choice (e.g., "Yes" or "No") with a corresponding
- * image and name. It highlights the selection with a border. Tapping the card
- * triggers the provided `onClick` lambda to update the selection state.
- *
- * @param name The text to display for the option (e.g., "Yes", "No").
- * @param imageRes The drawable resource ID for the image representing the option.
- * @param selected A boolean indicating whether this option is currently selected.
- * @param onClick A lambda function to be executed when the option is clicked.
- */
-@Composable
-fun AiOption(name: String, imageRes: Int, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(130.dp, 110.dp)
-            .border(
-                width = 4.dp,
-                color = if (selected) Color.Black else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .clickable { onClick() }
-            .background(Color.White, RoundedCornerShape(12.dp)),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Image(
-                painter = painterResource(id = imageRes),
-                contentDescription = name,
-                modifier = Modifier.size(70.dp)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(name, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        }
-    }
-}
+// MAIN SCREEN
 
-/**
- * A composable screen that provides a user interface for quickly configuring key app settings.
- *
- * This screen handles the presentation and logic for adjusting sound volume, selecting a text-to-speech
- * voice, and enabling or disabling AI support. It integrates with Firebase for user authentication
- * and for fetching and saving settings to Firestore. It also initializes a local Room database
- * and a `FastSettingsViewModel` to manage the settings data and business logic.
- *
- * The UI is structured into distinct sections for "SOUND", "VOICE", and "AI SUPPORT", each
- * presented within a `SectionBox`. User interactions, such as moving a slider or selecting
- * an option, trigger updates to both the local state and the remote Firestore database.
- * The screen ensures that a user is logged in before displaying the settings; otherwise, it
- * shows a "User not logged in" message.
- */
 @Composable
 fun FastSettingsScreen() {
     val context = LocalContext.current
+
+    // DB + Repo + ViewModel
     val db = remember {
         Room.databaseBuilder(context, AppDatabase::class.java, "tap_talk_db").build()
     }
@@ -227,14 +172,57 @@ fun FastSettingsScreen() {
         }
         return
     }
-    val viewModel = remember { FastSettingsViewModel(repo, userId) }
 
-    var volume by remember { mutableStateOf(viewModel.volume) }
+    val viewModel = remember { FastSettingsViewModel(repo, userId) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // system volume
+    val audioManager = remember {
+        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
+    val maxSystemVolume = remember {
+        audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+    }
+
+    // TTS + VOICES
+    var tts by remember { mutableStateOf<TextToSpeech?>(null) }
+    var voices by remember { mutableStateOf<List<Voice>>(emptyList()) }
+    var voicesLoaded by rememberSaveable { mutableStateOf(false) }
+
+    // LOCAL STATE
+    var volume by remember { mutableFloatStateOf(viewModel.volume) }
     var selectedVoice by remember { mutableStateOf(viewModel.selectedVoice) }
     var aiSupport by remember { mutableStateOf(viewModel.aiSupport) }
 
-    val coroutineScope = rememberCoroutineScope()
+    // INIT TTS + LOAD VOICES
+    LaunchedEffect(Unit) {
+        tts = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.language = Locale.US
+                val all = tts?.voices ?: emptySet()
+                val englishOffline = all.filter { v ->
+                    v.locale.language == "en" && !v.isNetworkConnectionRequired
+                }.sortedBy { it.name }
+                voices = englishOffline
+                voicesLoaded = true
 
+                val match = englishOffline.firstOrNull { it.name == selectedVoice }
+                if (match != null) {
+                    tts?.voice = match
+                }
+            }
+        }
+    }
+
+    // DISPOSE TTS
+    DisposableEffect(Unit) {
+        onDispose {
+            tts?.stop()
+            tts?.shutdown()
+        }
+    }
+
+    // LOAD SETTINGS FROM FIRESTORE
     LaunchedEffect(Unit) {
         val firestore = FirebaseFirestore.getInstance()
         val snap = firestore.collection("USERS")
@@ -245,9 +233,16 @@ fun FastSettingsScreen() {
             .await()
 
         if (snap.exists()) {
-            volume = (snap.getDouble("volume") ?: 50.0).toFloat()
-            selectedVoice = snap.getString("selectedVoice") ?: "Kate"
-            aiSupport = snap.getBoolean("aiSupport") ?: true
+            val newVolume = (snap.getDouble("volume") ?: viewModel.volume.toDouble()).toFloat()
+            val newVoice = snap.getString("selectedVoice") ?: viewModel.selectedVoice
+            val newAi = snap.getBoolean("aiSupport") ?: viewModel.aiSupport
+
+            volume = newVolume
+            selectedVoice = newVoice
+            aiSupport = newAi
+
+            val targetVol = (maxSystemVolume * (newVolume / 100f)).toInt()
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, 0)
         }
     }
 
@@ -258,14 +253,15 @@ fun FastSettingsScreen() {
                 .padding(innerPadding)
                 .background(Color.White)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            //SOUND
+            // SOUND
             SectionBox(title = "SOUND", iconId = R.drawable.sound) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -280,15 +276,26 @@ fun FastSettingsScreen() {
 
                     Slider(
                         value = volume,
-                        onValueChange = { volume = it },
+                        onValueChange = { value ->
+                            volume = value
+                            val newVol = (maxSystemVolume * (value / 100f)).toInt()
+                            audioManager.setStreamVolume(
+                                AudioManager.STREAM_MUSIC,
+                                newVol.coerceIn(0, maxSystemVolume),
+                                0
+                            )
+                        },
                         onValueChangeFinished = {
                             coroutineScope.launch {
                                 viewModel.volume = volume
                                 viewModel.saveSettings()
+                                safeUpdateSetting(userId, "volume", volume)
                             }
                         },
                         valueRange = 0f..100f,
-                        modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 12.dp),
                         colors = SliderDefaults.colors(
                             thumbColor = Color.Black,
                             activeTrackColor = Color.Black,
@@ -316,38 +323,76 @@ fun FastSettingsScreen() {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            //VOICE
+            // VOICE
             SectionBox(title = "VOICE", iconId = R.drawable.voice) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    listOf("Kate", "Sami", "Josh", "Sabrina").forEach { voice ->
-                        val imageRes = when (voice) {
-                            "Kate" -> R.drawable.kate
-                            "Sami" -> R.drawable.sami
-                            "Josh" -> R.drawable.josh
-                            else -> R.drawable.trisha
-                        }
-                        VoiceOption(
-                            name = voice,
-                            imageRes = imageRes,
-                            selected = selectedVoice == voice,
-                            onClick = {
-                                selectedVoice = voice
-                                coroutineScope.launch {
-                                    viewModel.selectedVoice = voice
-                                    viewModel.saveSettings()
+
+                if (!voicesLoaded) {
+                    Text("Loading voices...", fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                } else if (voices.isEmpty()) {
+                    Text(
+                        "No offline English voices found.\nCheck system TTS settings.",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                } else {
+                    var expanded by remember { mutableStateOf(false) }
+
+                    Text(
+                        text = "Selected voice:",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    Spacer(Modifier.height(4.dp))
+
+                    Text(
+                        text = selectedVoice.ifBlank { "None" },
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Button(onClick = { expanded = true }) {
+                        Text("Choose system voice")
+                    }
+
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        voices.forEach { v ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text("${v.locale.displayLanguage} – ${v.name}")
+                                },
+                                onClick = {
+                                    expanded = false
+                                    selectedVoice = v.name
+
+                                    coroutineScope.launch {
+                                        viewModel.selectedVoice = v.name
+                                        viewModel.saveSettings()
+                                        safeUpdateSetting(userId, "selectedVoice", v.name)
+                                    }
+
+                                    tts?.voice = v
+                                    tts?.speak(
+                                        "Voice chosen",
+                                        TextToSpeech.QUEUE_FLUSH,
+                                        null,
+                                        "VOICE_CHOSEN"
+                                    )
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            //AI SUPPORT
+            // AI SUPPORT
             SectionBox(title = "AI SUPPORT", iconId = R.drawable.ai) {
                 Row(
                     modifier = Modifier
@@ -355,16 +400,30 @@ fun FastSettingsScreen() {
                         .padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    AiOption("No", R.drawable.no, selected = !aiSupport) {
+                    AiOption(
+                        name = "No",
+                        displayText = "No",
+                        imageRes = R.drawable.no,
+                        selected = !aiSupport
+                    ) {
                         aiSupport = false
                         coroutineScope.launch {
+                            viewModel.aiSupport = false
+                            viewModel.saveSettings()
                             safeUpdateSetting(userId, "aiSupport", false)
                         }
                     }
 
-                    AiOption("Yes", R.drawable.yes, selected = aiSupport) {
+                    AiOption(
+                        name = "Yes",
+                        displayText = "Yes",
+                        imageRes = R.drawable.yes,
+                        selected = aiSupport
+                    ) {
                         aiSupport = true
                         coroutineScope.launch {
+                            viewModel.aiSupport = true
+                            viewModel.saveSettings()
                             safeUpdateSetting(userId, "aiSupport", true)
                         }
                     }

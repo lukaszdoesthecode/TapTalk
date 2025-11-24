@@ -23,6 +23,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.taptalk.aac.data.AccCard
 import com.example.taptalk.aac.data.loadCustomCards
 import com.example.taptalk.ui.components.BottomNavBar
+import com.example.taptalk.ui.theme.White
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
@@ -197,7 +198,7 @@ fun CustomWordsManagerScreen() {
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .background(Color(0xFFF8F8F8))
+                .background(White)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {

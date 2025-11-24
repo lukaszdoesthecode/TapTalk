@@ -4,22 +4,19 @@ import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material3.Icon
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,10 +28,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.room.Room
@@ -44,6 +39,7 @@ import com.example.taptalk.CreateCategoryActivity
 import com.example.taptalk.aac.data.loadCategories
 import com.example.taptalk.borderColorFor
 import com.example.taptalk.data.AppDatabase
+import com.example.taptalk.ui.theme.White
 
 /**
  * A Composable that displays a horizontal bar of categories.
@@ -64,16 +60,17 @@ import com.example.taptalk.data.AppDatabase
  *                           "Home" category is selected.
  * @param modifier The [Modifier] to be applied to the category bar row.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun CategoryBar(
     imageLoader: ImageLoader,
     onCategorySelected: (String?) -> Unit,
+    onCategoryLongPress: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var categories by remember { mutableStateOf<List<com.example.taptalk.aac.data.Category>>(emptyList()) }
     var userCats by remember { mutableStateOf(emptyList<com.example.taptalk.data.UserCategoryEntity>()) }
-
 
     LaunchedEffect(Unit) {
         val builtIn = loadCategories(context).map {
@@ -93,7 +90,8 @@ fun CategoryBar(
         val userAsCategories = userCats.map { uc ->
             com.example.taptalk.aac.data.Category(
                 label = uc.name,
-                path = uc.imagePath?.let { "file://$it" } ?: "file:///android_asset/icons/custom_folder.png"
+                path = uc.imagePath?.let { "file://$it" }
+                    ?: "file:///android_asset/icons/custom_folder.png"
             )
         }
 
@@ -103,68 +101,86 @@ fun CategoryBar(
         )
 
         categories = (builtIn + userAsCategories)
-            .distinctBy { it.label.lowercase() } + listOf(addCategoryTile)
+            .distinctBy { it.label.lowercase() }
+            .plus(addCategoryTile)
     }
 
     val visibleCount = 9
     val maxStart = (categories.size - visibleCount).coerceAtLeast(0)
     var startIndex by remember { mutableStateOf(0) }
 
-    val endIndex = (startIndex + visibleCount).coerceAtMost(categories.size)
-    val visibleCats = categories.subList(startIndex, endIndex)
+    val visibleCats = categories.subList(
+        startIndex,
+        (startIndex + visibleCount).coerceAtMost(categories.size)
+    )
 
     Row(
         modifier = modifier
-            .background(Color(0xFFEFEFEF))
-            .padding(4.dp),
+            .height(100.dp)
+            .background(White)
+            .padding(horizontal = 6.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
 
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .border(3.dp, Color.Black, RoundedCornerShape(8.dp))
-                .background(Color.LightGray, RoundedCornerShape(8.dp))
-                .clickable {
-                    startIndex = (startIndex - visibleCount).coerceAtLeast(0)
-                },
-            contentAlignment = Alignment.Center
+        val canGoPrev = startIndex > 0
+
+        // Left button
+        CategorySquareButton(
+            icon = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDesc = "Previous categories",
+            enabled = canGoPrev
         ) {
-            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.Black)
+            if (canGoPrev) {
+                startIndex = (startIndex - visibleCount).coerceAtLeast(0)
+            }
         }
 
+        // Category tile
         visibleCats.forEach { cat ->
-            val label = cat.label.lowercase()
-            val isAddButton = cat.label == "+ New"
+            val labelLower = cat.label.lowercase()
+            val isAdd = cat.label == "+ New"
 
-            val userCatColorHex = userCats.find { it.name.equals(cat.label, ignoreCase = true) }?.colorHex
-            val userCatColor = userCatColorHex?.let { Color(android.graphics.Color.parseColor(it)) }
+            val userColorHex =
+                userCats.find { it.name.equals(cat.label, ignoreCase = true) }?.colorHex
+            val userColor = userColorHex?.let {
+                Color(android.graphics.Color.parseColor(it))
+            }
 
             val borderColor = when {
-                isAddButton -> Color.Black
-                userCatColor != null -> userCatColor
-                else -> borderColorFor(label)
+                isAdd -> Color.Black
+                userColor != null -> userColor
+                else -> borderColorFor(labelLower)
             }
+
             val bgColor = borderColor.copy(alpha = 0.25f)
 
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxHeight()
+                    .height(80.dp)
                     .border(4.dp, borderColor, RoundedCornerShape(10.dp))
                     .background(bgColor, RoundedCornerShape(10.dp))
-                    .clickable {
-                        if (isAddButton) {
-                            context.startActivity(
-                                android.content.Intent(context, CreateCategoryActivity::class.java)
-                            )
-                        } else {
-                            if (label == "home") onCategorySelected(null)
-                            else onCategorySelected(cat.label)
+                    .combinedClickable(
+                        onClick = {
+                            if (isAdd) {
+                                context.startActivity(
+                                    android.content.Intent(context, CreateCategoryActivity::class.java)
+                                )
+                            } else {
+                                if (cat.label.equals("Home", ignoreCase = true)) {
+                                    onCategorySelected(null)
+                                } else {
+                                    onCategorySelected(cat.label)
+                                }
+                            }
+                        },
+                        onLongClick = {
+                            if (!isAdd) {
+                                onCategoryLongPress(cat.label)
+                            }
                         }
-                    },
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -182,6 +198,7 @@ fun CategoryBar(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(6.dp))
                     )
+
                     Text(
                         text = cat.label,
                         fontSize = 12.sp,
@@ -192,46 +209,18 @@ fun CategoryBar(
             }
         }
 
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .border(3.dp, Color.Black, RoundedCornerShape(8.dp))
-                .background(Color.LightGray, RoundedCornerShape(8.dp))
-                .clickable {
-                    startIndex = (startIndex + visibleCount).coerceAtMost(maxStart)
-                },
-            contentAlignment = Alignment.Center
+        val canGoNext = startIndex < maxStart
+
+        // Right button
+        CategorySquareButton(
+            icon = Icons.AutoMirrored.Filled.ArrowForward,
+            contentDesc = "Next categories",
+            enabled = canGoNext
         ) {
-            Icon(Icons.Default.ArrowForward, contentDescription = "Next", tint = Color.Black)
+            if (canGoNext) {
+                startIndex = (startIndex + visibleCount).coerceAtMost(maxStart)
+            }
         }
     }
-    }
 
-
-
-@Composable
-fun CategorySquareButton(
-    icon: ImageVector,
-    contentDesc: String,
-    enabled: Boolean,
-    width: Dp = 80.dp,
-    height: Dp = 70.dp,
-    onClick: () -> Unit
-) {
-    val shape = RoundedCornerShape(4.dp)
-    val borderColor = if (enabled) Color.Black else Color.Gray
-    val bg = if (enabled) Color(0xFFD9D9D9) else Color(0xFFE8E8E8)
-
-    Box(
-        modifier = Modifier
-            .width(width)
-            .height(height)
-            .border(2.dp, borderColor, shape)
-            .background(bg, shape)
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = contentDesc, tint = if (enabled) Color.Black else Color.Gray)
-    }
 }

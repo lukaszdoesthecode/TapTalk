@@ -17,4 +17,8 @@ interface FastSettingsDao {
 
     @Query("UPDATE fast_settings SET isSynced = :synced WHERE id = 1")
     suspend fun updateSyncStatus(synced: Boolean)
+
+    @Query("DELETE FROM fast_settings")
+    suspend fun deleteAll()
+
 }

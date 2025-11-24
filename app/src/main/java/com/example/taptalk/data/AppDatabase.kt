@@ -24,6 +24,7 @@ import androidx.room.TypeConverters
     entities = [
         FastSettingsEntity::class,
         HistoryEntity::class,
+        CustomWordEntity::class,
         UserCategoryEntity::class
     ],
     version = 4,
@@ -35,6 +36,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun fastSettingsDao(): FastSettingsDao
     abstract fun historyDao(): HistoryDao
     abstract fun userCategoryDao(): UserCategoryDao
+    abstract fun customWordDao(): CustomWordDao
 
     companion object {
         @Volatile
