@@ -19,8 +19,9 @@ class CategorySyncWorker(
     override suspend fun doWork(): Result {
         val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return Result.success()
         val db = AppDatabase.getDatabase(applicationContext)
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
         val dao = db.userCategoryDao()
-        val unsynced = dao.getAll().filter { !it.synced }
+        val unsynced = dao.getAll(uid).filter { !it.synced }
 
         if (unsynced.isEmpty()) return Result.success()
 

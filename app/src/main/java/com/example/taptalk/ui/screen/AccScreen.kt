@@ -228,7 +228,8 @@ fun AccScreen(
             AppDatabase::class.java,
             "tap_talk_db"
         ).build()
-        userCategories = db.userCategoryDao().getAll()
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+        userCategories = db.userCategoryDao().getAll(uid)
     }
 
     val favs = remember { mutableStateListOf<AccCard>() }
@@ -633,8 +634,8 @@ fun AccScreen(
                         Box(
                             modifier = Modifier
                                 .size(120.dp)
-                                .border(2.dp, Color(0xFF81C784), RoundedCornerShape(10.dp))
-                                .background(Color(0xFFE8F5E9), RoundedCornerShape(10.dp))
+                                .border(2.dp, Color(0xFFFFA726), RoundedCornerShape(10.dp))
+                                .background(Color(0xFFFFF3E0), RoundedCornerShape(10.dp))
                                 .clickable {
                                     chosen.add(selectedCard!!)
                                     showPopup = false
@@ -780,24 +781,31 @@ fun AccScreen(
                             Spacer(Modifier.weight(1f))
                         }
                     }
-
-                    Text(
-                        text = "Show all",
-                        color = Color.Blue,
-                        modifier = Modifier.clickable {
-                            selectedCategoryLetter = null
-                            selectedCategory = longPressedCategory
-                            showCategoryLetterPopup = false
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .border(2.dp, Color.Red, RoundedCornerShape(8.dp))
+                            .background(Color.LightGray, RoundedCornerShape(8.dp))
+                            .clickable { showCategoryLetterPopup = false },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxSize().padding(4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            Image(
+                                painter = rememberAsyncImagePainter(
+                                    Uri.parse("file:///android_asset/tenses/negative_present.png"),
+                                    imageLoader
+                                ),
+                                contentDescription = "Cancel",
+                                modifier = Modifier.weight(1f).fillMaxWidth()
+                            )
+                            Text("Cancel", fontSize = 12.sp, color = Color.Red, textAlign = TextAlign.Center)
                         }
-                    )
+                    }
 
-                    Text(
-                        text = "Cancel",
-                        color = Color.Red,
-                        modifier = Modifier.clickable {
-                            showCategoryLetterPopup = false
-                        }
-                    )
                 }
             }
         }

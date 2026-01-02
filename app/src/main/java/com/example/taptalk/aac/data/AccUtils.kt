@@ -2,6 +2,7 @@ package com.example.taptalk.aac.data
 
 import android.content.Context
 import org.json.JSONObject
+import java.io.InputStream
 import java.nio.charset.Charset
 
 /**
@@ -17,8 +18,15 @@ import java.nio.charset.Charset
  * @throws java.io.IOException if the file cannot be opened or read.
  * @throws org.json.JSONException if the file content is not a valid JSON format.
  */
-fun loadJsonAsset(context: Context, fileName: String): JSONObject {
-    val input = context.assets.open(fileName)
-    val json = input.bufferedReader(Charset.forName("UTF-8")).use { it.readText() }
+
+fun jsonFromStream(input: InputStream): JSONObject {
+    val json = input.bufferedReader(Charsets.UTF_8).use { it.readText() }
     return JSONObject(json)
+}
+
+
+fun loadJsonAsset(context: Context, fileName: String): JSONObject {
+    context.assets.open(fileName).use { input ->
+        return jsonFromStream(input)
+    }
 }

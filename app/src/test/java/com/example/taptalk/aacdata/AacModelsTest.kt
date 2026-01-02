@@ -1,27 +1,50 @@
 package com.example.taptalk.aacdata
 
 import com.example.taptalk.aac.data.AccCard
-import org.junit.Assert.*
+import com.example.taptalk.aac.data.Category
+import com.example.taptalk.aac.data.VerbForms
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class AacModelsTest {
+class AccModelsTest {
 
     @Test
-    fun accCard_createsProperly_andEqualityWorks() {
-        val card1 = AccCard("hello.mp3", "Hello", "/storage/hello.mp3", "Greetings")
-        val card2 = card1.copy()
+    fun `AccCard stores data correctly`() {
+        val card = AccCard(
+            fileName = "apple.png",
+            label = "Apple",
+            path = "/images/food/apple.png",
+            folder = "Food"
+        )
 
-        assertEquals(card1, card2)
-        assertEquals("Hello", card1.label)
-        assertEquals("/storage/hello.mp3", card1.path)
+        assertEquals("apple.png", card.fileName)
+        assertEquals("Apple", card.label)
+        assertEquals("/images/food/apple.png", card.path)
+        assertEquals("Food", card.folder)
     }
 
     @Test
-    fun accCard_copyUpdatesFieldCorrectly() {
-        val original = AccCard("dog.png", "Dog", "/files/dog.png", "Animals")
-        val updated = original.copy(label = "Doggo")
+    fun `VerbForms stores data and default negatives correctly`() {
+        val verb = VerbForms(
+            base = "eat",
+            past = "ate",
+            perfect = "eaten"
+        )
 
-        assertEquals("Doggo", updated.label)
-        assertNotEquals(original, updated)
+        assertEquals("eat", verb.base)
+        assertEquals("ate", verb.past)
+        assertEquals("eaten", verb.perfect)
+        assertEquals(emptyList<String>(), verb.negatives)
+    }
+
+    @Test
+    fun `Category stores data correctly`() {
+        val category = Category(
+            label = "Animals",
+            path = "/categories/animals"
+        )
+
+        assertEquals("Animals", category.label)
+        assertEquals("/categories/animals", category.path)
     }
 }

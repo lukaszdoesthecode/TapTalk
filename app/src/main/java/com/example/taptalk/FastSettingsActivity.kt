@@ -52,7 +52,6 @@ class FastSettingsActivity : ComponentActivity() {
 }
 
 // FIRESTORE HELPER
-
 /**
  * Safely updates a single setting field in a user's "Fast_Settings" document in Firestore.
  */
@@ -214,7 +213,6 @@ fun FastSettingsScreen() {
         }
     }
 
-    // DISPOSE TTS
     DisposableEffect(Unit) {
         onDispose {
             tts?.stop()

@@ -13,7 +13,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -119,7 +118,8 @@ class KeyboardActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 val firestore = FirebaseFirestore.getInstance()
                 val userId = FirebaseAuth.getInstance().currentUser?.uid
 
-                val local = fastDao.getSettings()
+                val uid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+                val local = fastDao.getSettings(uid)
 
                 var voiceName = local?.selectedVoice ?: "Kate"
                 var speechRate = local?.voiceSpeed ?: 1.0f
@@ -375,9 +375,6 @@ fun KeyboardScreen(
             }
             IconButton(onClick = { if (text.isNotBlank()) speak(text) }) {
                 Icon(Icons.Default.PlayArrow, contentDescription = "Speak", tint = Color.Black)
-            }
-            IconButton(onClick = { openTtsSettings() }) {
-                Icon(Icons.Default.Settings, contentDescription = "TTS Settings", tint = Color.Black)
             }
         }
 

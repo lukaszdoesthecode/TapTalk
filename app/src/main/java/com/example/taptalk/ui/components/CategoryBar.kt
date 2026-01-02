@@ -2,9 +2,11 @@ package com.example.taptalk.ui.components
 
 import android.net.Uri
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,6 +42,7 @@ import com.example.taptalk.aac.data.loadCategories
 import com.example.taptalk.borderColorFor
 import com.example.taptalk.data.AppDatabase
 import com.example.taptalk.ui.theme.White
+import com.google.firebase.auth.FirebaseAuth
 
 /**
  * A Composable that displays a horizontal bar of categories.
@@ -85,7 +88,8 @@ fun CategoryBar(
             AppDatabase::class.java,
             "tap_talk_db"
         ).build()
-        userCats = db.userCategoryDao().getAll()
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+        userCats = db.userCategoryDao().getAll(uid)
 
         val userAsCategories = userCats.map { uc ->
             com.example.taptalk.aac.data.Category(
@@ -162,6 +166,8 @@ fun CategoryBar(
                     .border(4.dp, borderColor, RoundedCornerShape(10.dp))
                     .background(bgColor, RoundedCornerShape(10.dp))
                     .combinedClickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = LocalIndication.current,
                         onClick = {
                             if (isAdd) {
                                 context.startActivity(

@@ -40,11 +40,9 @@ class CategoryRepository(private val context: Context) {
                 val cardFileNames = doc.get("cardFileNames") as? List<String> ?: emptyList()
                 val imageUrl = doc.getString("imageUrl")
 
-                var localImagePath: String? = null
-
-                if (!imageUrl.isNullOrEmpty()) {
-                    localImagePath = downloadCategoryImage(name, imageUrl)
-                }
+                val localImagePath = if (!imageUrl.isNullOrEmpty()) {
+                    downloadCategoryImage(name, imageUrl)
+                } else null
 
                 val entity = UserCategoryEntity(
                     name = name,

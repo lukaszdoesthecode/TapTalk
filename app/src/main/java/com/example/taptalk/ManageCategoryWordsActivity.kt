@@ -28,6 +28,7 @@ import com.example.taptalk.aac.data.AccCard
 import com.example.taptalk.aac.data.loadAccCards
 import com.example.taptalk.data.AppDatabase
 import com.example.taptalk.data.UserCategoryEntity
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
 
 /**
@@ -61,7 +62,8 @@ fun ManageCategoryWordsScreen(categoryName: String?) {
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        val cat = db.userCategoryDao().getAll().find { it.name == categoryName }
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+        val cat = db.userCategoryDao().getAll(uid).find { it.name == categoryName }
         category = cat
         if (cat != null) {
             selected = cat.cardFileNames.toMutableSet()
@@ -87,10 +89,16 @@ fun ManageCategoryWordsScreen(categoryName: String?) {
                         Button(
                             onClick = {
                                 scope.launch {
+                                    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+
                                     val updated = category!!.copy(
                                         cardFileNames = selected.toList(),
-                                        synced = false
+                                        synced = false,
+                                        userId = uid
                                     )
+
+                                    db.userCategoryDao().insertOrUpdate(updated)
+                                    (context as? ComponentActivity)?.finish()
                                     db.userCategoryDao().insertOrUpdate(updated)
                                     (context as? ComponentActivity)?.finish()
                                 }

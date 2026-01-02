@@ -259,7 +259,8 @@ class AccActivity : ComponentActivity() {
                     ).build()
                     val fastDao = db.fastSettingsDao()
 
-                    val local = fastDao.getSettings()
+                    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+                    val local = fastDao.getSettings(uid)
 
                     var voiceName = local?.selectedVoice ?: "Kate"
                     var speechRate = local?.voiceSpeed ?: 1.0f
@@ -282,7 +283,8 @@ class AccActivity : ComponentActivity() {
                                 val newRate = (snap.getDouble("voiceSpeed") ?: speechRate.toDouble()).toFloat()
                                 val newPitch = (snap.getDouble("voicePitch") ?: pitch.toDouble()).toFloat()
 
-                                val updated = fastDao.getSettings()?.copy(
+                                val currentLocal = fastDao.getSettings(uid)
+                                val updated = currentLocal?.copy(
                                     selectedVoice = newVoice,
                                     voiceSpeed = newRate,
                                     voicePitch = newPitch,

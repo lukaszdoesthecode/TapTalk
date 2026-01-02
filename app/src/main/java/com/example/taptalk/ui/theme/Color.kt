@@ -16,7 +16,7 @@ val White = Color(0xFFFFFFFF)
 val Black = Color(0xFF000000)
 val ErrorRed = Color(0xFFB00020)
 
-// Fitzgerald
+// Fitzgerald - English version
 val Emergency = Color(0xFFEC5E57)
 val Social = Color(0xFFF092CF)
 val Question = Color(0xFFA17FF7)

@@ -4,9 +4,11 @@ import android.annotation.SuppressLint
 import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -115,6 +118,8 @@ fun AACBoardGrid(
                             .border(2.dp, borderColor, RoundedCornerShape(10.dp))
                             .background(bgColor, RoundedCornerShape(10.dp))
                             .combinedClickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = LocalIndication.current,
                                 onClick = { onCardClick(card) },
                                 onLongClick = { onCardLongPress(card) },
                                 onDoubleClick = {

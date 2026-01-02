@@ -5,21 +5,9 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
-/**
- * The main database class for the application.
- *
- * This class is annotated with `@Database` and serves as the main access point to the
- * persisted data. It defines the list of entities included in the database, provides
- * abstract methods to get Data Access Objects (DAOs) for each entity, and specifies
- * type converters for custom data types.
- *
- * The database is managed by the Room persistence library.
- *
- * @property entities The list of entity classes that are part of this database.
- * @property version The version of the database schema. This must be incremented when the schema changes.
- * @property typeConverters The list of [TypeConverter] classes to use in the database.
- */
 @Database(
     entities = [
         FastSettingsEntity::class,
@@ -27,9 +15,8 @@ import androidx.room.TypeConverters
         CustomWordEntity::class,
         UserCategoryEntity::class
     ],
-    version = 4,
+    version = 5,
 )
-
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
@@ -42,13 +29,24 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE history ADD COLUMN userId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE fast_settings ADD COLUMN userId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE custom_words ADD COLUMN userId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE user_categories ADD COLUMN userId TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "tap_talk_db"
-                ).build()
+                )
+                    .addMigrations(MIGRATION_4_5)
+                    .build()
                 INSTANCE = instance
                 instance
             }

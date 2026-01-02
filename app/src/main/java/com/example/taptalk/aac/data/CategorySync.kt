@@ -76,6 +76,7 @@ fun saveCategoryLocallyAndToFirebase(
 
     // Save to Room
     CoroutineScope(Dispatchers.IO).launch {
+
         val db = Room.databaseBuilder(
             context.applicationContext,
             AppDatabase::class.java,
@@ -83,13 +84,17 @@ fun saveCategoryLocallyAndToFirebase(
         ).build()
 
         val catDao = db.userCategoryDao()
+
         val entity = UserCategoryEntity(
             name = name,
             colorHex = colorHex,
             imagePath = localImagePath,
             cardFileNames = selectedCardFileNames,
-            synced = false
+            synced = false,
+            userId = userId
         )
+
+        // Save locally
         catDao.insertOrUpdate(entity)
 
         CoroutineScope(Dispatchers.Main).launch {
@@ -132,6 +137,7 @@ fun saveCategoryLocallyAndToFirebase(
         }
     }
 }
+
 
 /**
  * Uploads the metadata for a custom category to Firestore.
@@ -176,7 +182,13 @@ private fun uploadCategoryMetadata(
         .set(data)
         .addOnSuccessListener {
             CoroutineScope(Dispatchers.IO).launch {
-                catDao.insertOrUpdate(entity.copy(synced = true))
+
+                catDao.insertOrUpdate(
+                    entity.copy(
+                        synced = true,
+                        userId = userId
+                    )
+                )
             }
             onResult("Category synced with cloud")
         }

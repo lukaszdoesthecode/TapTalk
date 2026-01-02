@@ -5,8 +5,8 @@ import androidx.room.*
 @Dao
 interface CustomWordDao {
 
-    @Query("SELECT * FROM custom_words")
-    suspend fun getAll(): List<CustomWordEntity>
+    @Query("SELECT * FROM custom_words WHERE userId = :uid")
+    suspend fun getAll(uid: String): List<CustomWordEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(word: CustomWordEntity)
@@ -14,6 +14,6 @@ interface CustomWordDao {
     @Delete
     suspend fun delete(word: CustomWordEntity)
 
-    @Query("DELETE FROM custom_words")
-    suspend fun deleteAll()
+    @Query("DELETE FROM custom_words WHERE userId = :uid")
+    suspend fun deleteAll(uid: String)
 }

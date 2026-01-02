@@ -2,21 +2,18 @@ package com.example.taptalk.data
 
 import androidx.room.*
 
-/**
- * Data Access Object (DAO) for the [HistoryEntity] class.
- * Provides methods for interacting with the 'history' table in the database.
- */
 @Dao
 interface HistoryDao {
+
     @Insert
-    fun insert(history: HistoryEntity)
+    suspend fun insert(history: HistoryEntity)
 
-    @Query("SELECT * FROM history ORDER BY timestamp ASC")
-    fun getAll(): List<HistoryEntity>
+    @Query("SELECT * FROM history WHERE userId = :uid ORDER BY timestamp ASC")
+    suspend fun getAll(uid: String): List<HistoryEntity>
 
-    @Query("SELECT * FROM history ORDER BY timestamp DESC LIMIT 15")
-    fun getRecent(): List<HistoryEntity>
+    @Query("SELECT * FROM history WHERE userId = :uid ORDER BY timestamp DESC LIMIT 15")
+    suspend fun getRecent(uid: String): List<HistoryEntity>
 
-    @Query("DELETE FROM history")
-    suspend fun deleteAll()
+    @Query("DELETE FROM history WHERE userId = :uid")
+    suspend fun deleteAll(uid: String)
 }

@@ -29,6 +29,7 @@ class CustomWordsRepository(private val context: Context) {
             .collection("Custom_Words")
 
         try {
+
             val snapshot = wordsRef.get().await()
 
             for (doc in snapshot.documents) {

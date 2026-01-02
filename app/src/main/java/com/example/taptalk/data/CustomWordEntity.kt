@@ -8,5 +8,6 @@ data class CustomWordEntity(
     @PrimaryKey val label: String,
     val folder: String,
     val imagePath: String? = null,
-    val synced: Boolean = false
+    val synced: Boolean = false,
+    val userId: String = ""
 )

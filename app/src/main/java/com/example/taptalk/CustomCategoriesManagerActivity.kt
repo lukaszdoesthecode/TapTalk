@@ -31,6 +31,7 @@ import com.example.taptalk.data.UserCategoryEntity
 import com.example.taptalk.ui.components.BottomNavBar
 import kotlinx.coroutines.launch
 import com.example.taptalk.aac.data.scheduleCategorySync
+import com.google.firebase.auth.FirebaseAuth
 
 /**
  * An activity that provides a user interface for managing custom communication categories.
@@ -73,7 +74,8 @@ fun CustomCategoriesManagerScreen() {
     var selectedCategory by remember { mutableStateOf<UserCategoryEntity?>(null) }
 
     LaunchedEffect(Unit) {
-        val local = db.userCategoryDao().getAll()
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+        val local = db.userCategoryDao().getAll(uid)
         val unique = local.distinctBy { it.name.lowercase() } // remove duplicates by name
         categories = unique
     }
@@ -110,7 +112,8 @@ fun CustomCategoriesManagerScreen() {
                             onDelete = {
                                 scope.launch {
                                     db.userCategoryDao().delete(cat)
-                                    categories = db.userCategoryDao().getAll()
+                                    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+                                    categories = db.userCategoryDao().getAll(uid)
                                     scheduleCategorySync(context)
                                 }
                             },
@@ -131,13 +134,21 @@ fun CustomCategoriesManagerScreen() {
                 onDismiss = { selectedCategory = null },
                 onSave = { updated ->
                     scope.launch {
-                        val unsynced = updated.copy(synced = false)
+                        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+
+                        val unsynced = updated.copy(
+                            synced = false,
+                            userId = uid
+                        )
+
                         db.userCategoryDao().insertOrUpdate(unsynced)
-                        categories = db.userCategoryDao().getAll()
+
+                        categories = db.userCategoryDao().getAll(uid)
                         selectedCategory = null
                         scheduleCategorySync(context)
                     }
                 }
+
             )
         }
     }

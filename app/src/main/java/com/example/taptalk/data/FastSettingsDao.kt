@@ -9,16 +9,16 @@ import androidx.room.*
  */
 @Dao
 interface FastSettingsDao {
-    @Query("SELECT * FROM fast_settings WHERE id = 1")
-    suspend fun getSettings(): FastSettingsEntity?
+
+    @Query("SELECT * FROM fast_settings WHERE id = 0 AND userId = :uid")
+    suspend fun getSettings(uid: String): FastSettingsEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(settings: FastSettingsEntity)
 
-    @Query("UPDATE fast_settings SET isSynced = :synced WHERE id = 1")
-    suspend fun updateSyncStatus(synced: Boolean)
+    @Query("UPDATE fast_settings SET isSynced = :synced WHERE id = 0 AND userId = :uid")
+    suspend fun updateSyncStatus(uid: String, synced: Boolean)
 
-    @Query("DELETE FROM fast_settings")
-    suspend fun deleteAll()
-
+    @Query("DELETE FROM fast_settings WHERE userId = :uid")
+    suspend fun deleteAll(uid: String)
 }

@@ -230,19 +230,20 @@ fun SettingsDropdown(title: String, options: List<String>, selected: String, onS
     }
 }
 
-private fun clearLocalCustomCards(context: Context) {
+fun clearLocalCustomCards(context: Context) {
     val dir = context.getDir("custom_cards", Context.MODE_PRIVATE)
     if (dir.exists()) {
         dir.deleteRecursively()
     }
 }
 
-private suspend fun clearLocalUserData(context: Context) {
+suspend fun clearLocalUserData(context: Context) {
+    val uid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
     val db = AppDatabase.getDatabase(context)
 
-    db.fastSettingsDao().deleteAll()
-    db.historyDao().deleteAll()
-    db.userCategoryDao().deleteAll()
+    db.fastSettingsDao().deleteAll(uid)
+    db.historyDao().deleteAll(uid)
+    db.userCategoryDao().deleteAll(uid)
 
     clearLocalCustomCards(context)
 }
@@ -403,7 +404,6 @@ fun SettingsScreen() {
                     }
                 }
 
-                // Apply voice once settings + voices are available
                 LaunchedEffect(voicesState.value, selectedVoice) {
                     if (!selectedVoice.isNullOrEmpty() && voicesState.value.isNotEmpty()) {
                         val v = voicesState.value.firstOrNull { it.name == selectedVoice }
@@ -412,7 +412,6 @@ fun SettingsScreen() {
                         selectedVoice = v.name
                         ttsEngine?.voice = v
 
-                        // apply saved pitch/speed here after voice applied
                         ttsEngine?.setPitch(voicePitch)
                         ttsEngine?.setSpeechRate(voiceSpeed)
                     }
@@ -601,7 +600,7 @@ fun SettingsScreen() {
                         syncing = false
                         android.widget.Toast.makeText(
                             context,
-                            "☁️ Synced & Custom Items Restored!",
+                            "Synced & Custom Items Restored!",
                             android.widget.Toast.LENGTH_SHORT
                         ).show()
 
@@ -609,7 +608,7 @@ fun SettingsScreen() {
                         syncing = false
                         android.widget.Toast.makeText(
                             context,
-                            "☁️ Synced & Restored!",
+                            "Synced & Restored!",
                             android.widget.Toast.LENGTH_SHORT
                         ).show()
                     }
@@ -620,13 +619,11 @@ fun SettingsScreen() {
             SettingsSection("Account") {
                 SettingsButton("Log Out") {
                     coroutineScope.launch {
-                        clearLocalUserData(context)
-
                         FirebaseAuth.getInstance().signOut()
 
                         android.widget.Toast.makeText(
                             context,
-                            "👋 Logged out and cleared local data",
+                            "Logged out and cleared local data",
                             android.widget.Toast.LENGTH_SHORT
                         ).show()
 
@@ -694,7 +691,7 @@ fun SettingsScreen() {
                                                     } else {
                                                         android.widget.Toast.makeText(
                                                             context,
-                                                            "❌ Failed to delete account",
+                                                            "Failed to delete account",
                                                             android.widget.Toast.LENGTH_SHORT
                                                         ).show()
                                                     }
@@ -702,7 +699,7 @@ fun SettingsScreen() {
                                             } else {
                                                 android.widget.Toast.makeText(
                                                     context,
-                                                    "🔐 Wrong password — try again",
+                                                    "Wrong password — try again",
                                                     android.widget.Toast.LENGTH_SHORT
                                                 ).show()
                                             }

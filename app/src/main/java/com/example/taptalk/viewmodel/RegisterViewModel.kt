@@ -66,6 +66,11 @@ class RegisterViewModel : ViewModel() {
      * @param optPassword A boolean flag indicating if password login is enabled (currently unused in the function body).
      * @param optPin A boolean flag indicating if PIN login is enabled.
      */
+
+    fun isValidEmail(email: String): Boolean {
+        return android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
+    }
+
     fun register(
         name: String,
         email: String,
@@ -81,7 +86,7 @@ class RegisterViewModel : ViewModel() {
             return
         }
 
-        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+        if (!isValidEmail(email)) {
             _state.value = RegisterState(error = "Please enter a valid email")
             return
         }
